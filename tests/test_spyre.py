@@ -1,0 +1,99 @@
+# Owner(s): ["module: cpp"]
+
+import os
+import unittest
+import psutil
+
+import torch
+from torch.testing._internal.common_utils import run_tests, TestCase
+
+
+class TestSpyre(TestCase):
+    def test_initializes(self):
+        self.assertEqual(torch._C._get_privateuse1_backend_name(), "spyre")
+
+    @unittest.skip("Skip for now")
+    def test_autograd_init(self):
+        # Make sure autograd is initialized
+        torch.ones(2, requires_grad=True, device="spyre").sum().backward()
+
+        pid = os.getpid()
+        task_path = f"/proc/{pid}/task"
+        all_threads = psutil.Process(pid).threads()
+
+        all_thread_names = set()
+
+        for t in all_threads:
+            with open(f"{task_path}/{t.id}/comm") as file:
+                thread_name = file.read().strip()
+            all_thread_names.add(thread_name)
+
+        for i in range(torch.spyre._device_daemon.NUM_DEVICES):
+            self.assertIn(f"pt_autograd_{i}", all_thread_names)
+
+    @unittest.skip("Skip for now")
+    def test_factory(self):
+        a = torch.empty(50, device="spyre")
+        self.assertEqual(a.device.type, "spyre")
+
+        a.fill_(3.5)
+
+        self.assertTrue(a.eq(3.5).all())
+
+    @unittest.skip("Skip for now")
+    def test_printing(self):
+        # a = torch.ones(20, device="spyre")
+        a = torch.tensor([1, 2]).to("spyre")
+        # Does not crash!
+        try:
+            a_repr = f"{a}"
+        except RuntimeError as re:
+            self.fail(f"Printing tensor failed with runtime error {re}")
+
+        # Check the the print includes all elements and Spyre device
+        expected_a_repr = "tensor([1, 2], device='spyre:0')"
+        self.assertEqual(expected_a_repr, a_repr)
+
+    def test_cross_device_copy(self):
+        a = torch.rand(10, dtype=torch.float16)
+        b = a.to(device="spyre").add(2).to(device="cpu")
+        self.assertEqual(b, a + 2)
+
+    @unittest.skip("Skip for now")
+    def test_data_dependent_output(self):
+        cpu_a = torch.randn(10)
+        a = cpu_a.to(device="spyre")
+        mask = a.gt(0)
+        out = torch.masked_select(a, mask)
+
+        self.assertEqual(out, cpu_a.masked_select(cpu_a.gt(0)))
+
+    # simple test to make sure allocation size is different between spyre and cpu
+    # this will be built out more once we have an op running in spyre
+    # currently this never finishes because of an issue with closing the
+    # program -- that will be solved in separate PR
+    # (this was tested in isolation)
+    def test_allocation_size(self):
+        x = torch.tensor([1, 2], dtype=torch.float16, device="spyre")
+        y = torch.tensor([1, 2], dtype=torch.float16)
+        x_storage_nbytes = x.untyped_storage().nbytes()
+        assert x_storage_nbytes == 128
+        assert x_storage_nbytes != y.untyped_storage().nbytes(), "failed allocation"
+
+    # simple test which makes sure we can copy to/from spyre and retain the same values
+    def test_spyre_round_trip(self):
+        dtypes = [torch.float16]  # FIXME: Need to support multiple dtypes
+        for dtype in dtypes:
+            x = torch.tensor([1, 2], dtype=dtype)
+            assert x.device.type == "cpu", "initial device is not cpu"
+            x_spyre = x.to("spyre")
+            assert x_spyre.device.type == "spyre", "to device is not spyre"
+            x_cpu = x_spyre.to("cpu")
+            (
+                torch.testing.assert_close(x, x_cpu),
+                f"round trip copy produces incorrect results for dtype={dtype}",
+            )
+
+
+if __name__ == "__main__":
+    run_tests()

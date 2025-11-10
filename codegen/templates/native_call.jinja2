@@ -1,0 +1,9 @@
+{{signature_out}} spyre__{{ template_data.op_name }}({{signature_in}}) {
+  DEBUGINFO("[spyre_{{ template_data.op_name }}] tensor. Tensor is on: ", {{ arguments[0].name }}.device());
+
+  return at::{{ operator_name }}({% for arg in arguments %}{{ arg.name }}{{"" if loop.last else "," }}{% endfor %});
+}
+
+TORCH_LIBRARY_IMPL(aten, PrivateUse1, m) {
+  m.impl({{ template_data.reg_name }}, TORCH_FN(spyre__{{ template_data.op_name }}));
+}

@@ -1,0 +1,3 @@
+TORCH_LIBRARY_IMPL(aten, PrivateUse1, m) {
+  m.impl({{ template_data.reg_name }}, torch::CppFunction::makeFallthrough());
+}
