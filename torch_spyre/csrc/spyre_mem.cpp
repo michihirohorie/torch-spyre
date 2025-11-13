@@ -53,6 +53,250 @@ struct DMAParameters {
   const off64_t src_offset;
   const off64_t dst_offset;
 };
+auto get_device_shape(c10::IntArrayRef sizes) -> std::vector<int64_t> {
+  /* Given the CPU Tensor's shape, return the shape of the tensor on Spyre
+   */
+  auto cpu_shape = sizes.vec();
+  std::vector<int64_t> dev_shape;
+  auto stick_size = 64;
+  auto requires_padding = (cpu_shape.back() % stick_size != 0);
+
+  for (int i = 0; i < cpu_shape.size(); i++) {
+    if (i == 0 && cpu_shape.size() == 1) {
+      dev_shape.push_back(stick_size);
+      if (requires_padding) {
+        dev_shape.push_back(1);
+      } else {
+        dev_shape.push_back(cpu_shape.back() / stick_size);
+      }
+    } else if (i == 0) {
+      dev_shape.push_back(stick_size);
+    } else if (i == sizes.size() - 1) {
+      if (cpu_shape.size() <= 2) dev_shape.push_back(cpu_shape[i - 1]);
+      if (requires_padding) {
+        auto padded_shape =
+            cpu_shape.back() + (stick_size - (cpu_shape.back() % stick_size));
+        dev_shape.push_back(padded_shape / stick_size);
+      } else {
+        dev_shape.push_back(cpu_shape.back() / stick_size);
+      }
+      if (cpu_shape.size() > 2) dev_shape.push_back(cpu_shape[i - 1]);
+    } else {
+      dev_shape.push_back(cpu_shape[i - 1]);
+    }
+  }
+  std::reverse(dev_shape.begin(), dev_shape.end());
+  return dev_shape;
+}
+auto get_device_shape(const at::Tensor* tensor) -> std::vector<int64_t> {
+  /* Given the CPU Tensor, return the shape of the equivalent tensor on
+   * Spyre
+   */
+  const c10::IntArrayRef& sizes = tensor->sizes();
+  return get_device_shape(sizes);
+}
+auto get_device_layout(c10::IntArrayRef sizes, c10::IntArrayRef strides)
+    -> std::vector<int64_t> {
+  std::vector<int64_t> dim_order;
+  auto stick_size = 64;
+  auto requires_padding = (sizes.back() % stick_size != 0);
+
+  for (int i = 0; i < sizes.size(); i++) {
+    if (sizes.size() == 1) {
+      dim_order.push_back(i);
+    } else {
+      if (i == 0) {
+        dim_order.push_back(sizes.size() - 1);
+      } else {
+        dim_order.push_back(i - 1);
+      }
+    }
+  }
+  return dim_order;
+}
+auto get_device_stride(c10::IntArrayRef sizes, c10::IntArrayRef strides,
+                       bool host2device) -> data_conversion_stride_info {
+  data_conversion_stride_info stride_info;
+  auto cpu_shape = sizes.vec();
+  auto cpu_strides = strides.vec();
+  auto stick_size = 64;
+  auto requires_padding = (cpu_shape.back() % stick_size != 0);
+  auto dev_dim_order = get_device_layout(sizes, strides);
+
+  for (int i = 0; i < dev_dim_order.size(); i++) {
+    auto& dim = dev_dim_order[i];
+    if (host2device) {  // host->device
+      if (dev_dim_order.size() == 1) {
+        if (requires_padding) {
+          stride_info.size_.push_back(cpu_shape[dim]);
+          stride_info.size_.push_back(1);
+        } else {
+          stride_info.size_.push_back(stick_size);
+          stride_info.size_.push_back(cpu_shape[dim] / stick_size);
+        }
+        stride_info.stride_src_.push_back(1);
+        stride_info.stride_dst_.push_back(1);
+        stride_info.stride_dst_.push_back(stick_size);
+        stride_info.stride_src_.push_back(stick_size);
+      } else {
+        if (i == dev_dim_order.size() - 1 && dev_dim_order.size() == 3) {
+          stride_info.stride_src_.push_back(stick_size);
+
+          if (requires_padding) {
+            stride_info.size_.push_back(1);
+            stride_info.stride_dst_.push_back(128);
+          } else {
+            stride_info.size_.push_back(cpu_shape[dev_dim_order.front()] /
+                                        stick_size);
+            stride_info.stride_dst_.push_back(cpu_shape[dev_dim_order[i - 1]] *
+                                              stick_size);
+          }
+        }
+        if (i == dev_dim_order.size() - 1 && dev_dim_order.size() <= 2) {
+          stride_info.stride_dst_.push_back(stick_size);
+          stride_info.size_.push_back(cpu_shape[dev_dim_order.back()]);
+          stride_info.stride_src_.push_back(cpu_strides[dev_dim_order.back()]);
+        }
+        if (dim == dev_dim_order.front()) {
+          if (requires_padding) {
+            stride_info.size_.push_back(cpu_shape[dim]);
+          } else {
+            stride_info.size_.push_back(stick_size);
+          }
+          stride_info.stride_src_.push_back(cpu_strides[dim]);
+          stride_info.stride_dst_.push_back(1);
+        } else if (dim == dev_dim_order.back() && dev_dim_order.size() <= 2) {
+          stride_info.stride_src_.push_back(stick_size);
+          if (requires_padding) {
+            stride_info.size_.push_back(1);
+          } else {
+            stride_info.size_.push_back(cpu_shape[dev_dim_order.front()] /
+                                        stick_size);
+          }
+          stride_info.stride_dst_.push_back(cpu_shape[dim] * stick_size);
+        } else if (dim == dev_dim_order.back() && dev_dim_order.size() == 3) {
+          stride_info.stride_src_.push_back(cpu_strides[dim]);
+          stride_info.size_.push_back(cpu_shape[dim]);
+          if (requires_padding) {
+            stride_info.stride_dst_.push_back(128);
+          } else {
+            stride_info.stride_dst_.push_back(cpu_shape.back() *
+                                              cpu_shape.front());
+          }
+        } else {
+          stride_info.size_.push_back(cpu_shape[dim]);
+          stride_info.stride_src_.push_back(cpu_strides[dim]);
+          if (stride_info.stride_dst_.back() == 1) {
+            stride_info.stride_dst_.push_back(stick_size);
+          } else {
+            stride_info.stride_dst_.push_back(cpu_shape[dim] * stick_size);
+          }
+        }
+      }
+    } else {  // device->host
+      if (dev_dim_order.size() == 1) {
+        if (requires_padding) {
+          stride_info.size_.push_back(cpu_shape[dim]);
+          stride_info.size_.push_back(1);
+        } else {
+          stride_info.size_.push_back(stick_size);
+          stride_info.size_.push_back(cpu_shape[dim] / stick_size);
+        }
+        stride_info.stride_src_.push_back(1);
+        stride_info.stride_dst_.push_back(1);
+        stride_info.stride_dst_.push_back(stick_size);
+        stride_info.stride_src_.push_back(stick_size);
+      } else {
+        if (i == dev_dim_order.size() - 1 && dev_dim_order.size() == 3) {
+          stride_info.stride_dst_.push_back(stick_size);
+
+          if (requires_padding) {
+            stride_info.size_.push_back(1);
+            stride_info.stride_src_.push_back(128);
+          } else {
+            stride_info.size_.push_back(cpu_shape[dev_dim_order.front()] /
+                                        stick_size);
+            stride_info.stride_src_.push_back(cpu_shape[dev_dim_order[i - 1]] *
+                                              stick_size);
+          }
+        }
+        if (i == dev_dim_order.size() - 1 && dev_dim_order.size() <= 2) {
+          stride_info.stride_src_.push_back(stick_size);
+          stride_info.size_.push_back(cpu_shape[dev_dim_order.back()]);
+          stride_info.stride_dst_.push_back(cpu_strides[dev_dim_order.back()]);
+        }
+        if (dim == dev_dim_order.front()) {
+          if (requires_padding) {
+            stride_info.size_.push_back(cpu_shape[dim]);
+          } else {
+            stride_info.size_.push_back(stick_size);
+          }
+          stride_info.stride_src_.push_back(1);
+          stride_info.stride_dst_.push_back(cpu_strides[dim]);
+        } else if (dim == dev_dim_order.back() && dev_dim_order.size() == 3) {
+          stride_info.stride_dst_.push_back(cpu_strides[dim]);
+          if (requires_padding) {
+            stride_info.stride_src_.push_back(128);
+          } else {
+            stride_info.stride_src_.push_back(cpu_shape.back() *
+                                              cpu_shape.front());
+          }
+          stride_info.size_.push_back(cpu_shape[dim]);
+        } else if (dim == dev_dim_order.back() && dev_dim_order.size() <= 2) {
+          stride_info.stride_dst_.push_back(stick_size);
+          if (requires_padding) {
+            stride_info.size_.push_back(1);
+          } else {
+            stride_info.size_.push_back(cpu_shape[dev_dim_order.front()] /
+                                        stick_size);
+          }
+          stride_info.stride_src_.push_back(cpu_shape[dim] * stick_size);
+        } else {
+          stride_info.size_.push_back(cpu_shape[dim]);
+          if (stride_info.stride_src_.back() == 1) {
+            stride_info.stride_src_.push_back(stick_size);
+          } else {
+            stride_info.stride_src_.push_back(cpu_shape[dim] * stick_size);
+          }
+          stride_info.stride_dst_.push_back(cpu_strides[dim]);
+        }
+      }
+    }
+  }
+  stride_info.offset_src_ = 0;
+  stride_info.offset_dst_ = 0;
+  return stride_info;
+}
+
+auto generate_dci(const at::Tensor* tensor, bool host2device) -> std::string {
+  /* Returns data conversion information in string
+   *   host2device = true : then 'tensor' is CPU-tensor
+   *   host2device = false: then 'tensor' is Spyre-tensor
+   */
+  std::stringstream s;
+  auto cpu_shape = tensor->sizes().vec();
+  auto cpu_strides = tensor->strides().vec();
+  std::vector<int64_t> dev_shape = get_device_shape(tensor);
+  data_conversion_info* dci = new data_conversion_info();
+  dci->dci_dsName_ = "DCI-Tensor-0";
+  dci->isHostToSen_ = host2device;
+  dci->dataformat_src_ =
+      host2device ? DataFormats::IEEE_FP16 : DataFormats::SEN169_FP16;
+  dci->dataformat_dst_ =
+      host2device ? DataFormats::SEN169_FP16 : DataFormats::IEEE_FP16;
+
+  data_conversion_stride_info stride_info =
+      get_device_stride(tensor->sizes(), tensor->strides(), host2device);
+  dci->dcsi_.push_back(stride_info);
+  std::reverse(cpu_shape.begin(), cpu_shape.end());
+  std::reverse(dev_shape.begin(), dev_shape.end());
+  dci->input_shape_ = host2device ? cpu_shape : dev_shape;
+  dci->output_shape_ = host2device ? dev_shape : cpu_shape;
+
+  dci->exportJson(s);
+  return s.str();
+}
+
 auto CreateDMAGraph(const at::Tensor& self, const at::Tensor& dst,
                     bool host2device) -> std::shared_ptr<sendnn::GraphLoader> {
   /* self = source
