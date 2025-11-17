@@ -54,6 +54,9 @@ struct DMAParameters {
   const off64_t dst_offset;
 };
 auto get_device_layout(c10::IntArrayRef sizes) -> std::vector<int64_t> {
+  /* Provide ordering of tensor dimensions on the device for
+   * generic stick format.
+   */
   std::vector<int64_t> dim_order;
   switch (sizes.size()) {
     case 1:
@@ -75,6 +78,11 @@ auto get_device_shape(c10::IntArrayRef sizes, int stick_size)
   auto cpu_shape = sizes.vec();
   std::vector<int64_t> dev_shape;
   auto dev_dim_order = get_device_layout(sizes);
+  /* If the CPU tensor's inner-most dimension is smaller than the stick size,
+   * then pad the dimension up to the stick size.
+   * TODO: support general padding if size of the stick dimension not a multiple
+   * of the stick size.
+   */
   auto requires_padding = (cpu_shape[dev_dim_order.front()] % stick_size != 0);
 
   /* Based on the dimension ordering on the device, provide the shape of the
@@ -220,6 +228,7 @@ auto generate_dci(const at::Tensor* tensor, bool host2device) -> std::string {
   /* Returns data conversion information in string
    *   host2device = true : then 'tensor' is CPU-tensor
    *   host2device = false: then 'tensor' is Spyre-tensor
+   * TODO: support strided tensors
    */
   std::stringstream s;
   auto cpu_shape = tensor->sizes().vec();
@@ -246,7 +255,8 @@ auto generate_dci(const at::Tensor* tensor, bool host2device) -> std::string {
 }
 
 auto create_dma_graph(const at::Tensor& self, const at::Tensor& dst,
-                    bool host2device) -> std::shared_ptr<sendnn::GraphLoader> {
+                      bool host2device)
+    -> std::shared_ptr<sendnn::GraphLoader> {
   /* self = source
    * dst  = destination
    */
@@ -273,57 +283,56 @@ auto create_dma_graph(const at::Tensor& self, const at::Tensor& dst,
   sendnn::TensorInfo dci_ti(sen_dtype_dev, dev_tensor_shape, layout,
                             sendnn::TensorLocation::HOST());
   //  STAGE 1: execution graph
-  sendnn::SubGraph fdc_graph;
+  sendnn::SubGraph sub_graph;
   int64_t xfer_size = dev_tensor_shape.Volume() * cpu_tensor->element_size();
-  {  // subgraph (execution graph)
+  {
     flex::FlexGraphBuilder gb;
-    flex::FlexGraphBuilder* gb_sn = &gb;
     DMAParameters dma_param{xfer_size, 0,
                             0};  // (num_bytes, offset_src, offset_dst)
     if (host2device) {
-      auto inp_node = gb_sn->PrimaryInput("Input", dci_ti);
-      auto h2d_dt = gb_sn->SenDataTransfer(
+      auto inp_node = gb.PrimaryInput("Input", dci_ti);
+      auto xfer_node = gb.SenDataTransfer(
           "Host2Sen-Transfer",
           dev_ti,    // output (holding shape, type, and location DEVICE)
           inp_node,  // input (node created using PrimaryInput and on HOST)
           dev_ti.DataSize(), dma_param.src_offset, dma_param.dst_offset);
-      auto out_node = gb_sn->PrimaryOutput("Output", h2d_dt);
+      auto out_node = gb.PrimaryOutput("Output", xfer_node);
     } else {
-      auto inp_node = gb_sn->PrimaryInput("Input", dev_ti);
-      auto d2h_dt = gb_sn->SenDataTransfer(
+      auto inp_node = gb.PrimaryInput("Input", dev_ti);
+      auto xfer_node = gb.SenDataTransfer(
           "Sen2Host-Transfer",
           dci_ti,    // output (holding shape, type and location HOST)
           inp_node,  // input (node created as a result of SenDataTransfer)
           dev_ti.DataSize(), dma_param.src_offset, dma_param.dst_offset);
-      auto out_node = gb_sn->PrimaryOutput("Output", d2h_dt);
+      auto out_node = gb.PrimaryOutput("Output", xfer_node);
     }
 
-    SEN_THROW_NOK(gb_sn->Finalize(&fdc_graph));
+    SEN_THROW_NOK(gb.Finalize(&sub_graph));
   }
   sendnn::SubGraph exec_graph;
   {  // add above subgraph as part of SenFusedDeviceCompute node
-    flex::FlexGraphBuilder fgb;
+    flex::FlexGraphBuilder gb;
     if (host2device) {
-      auto inp_node = fgb.PrimaryInput("Input", cpu_ti);
-      auto h2d_dci = generate_dci(cpu_tensor, host2device);
-      auto h2d_dci_node = fgb.SenHostCompute(
-          "Host2Sen-HostPrep", {dci_ti}, {inp_node}, "SenDataConvert", h2d_dci);
+      auto inp_node = gb.PrimaryInput("Input", cpu_ti);
+      auto dci = generate_dci(cpu_tensor, host2device);
+      auto dci_node = gb.SenHostCompute("Host2Sen-HostPrep", {dci_ti},
+                                        {inp_node}, "SenDataConvert", dci);
 
-      auto fdc = fgb.SenFusedDeviceCompute("SenFusedDeviceNode_0", {dci_ti},
-                                           {h2d_dci_node}, fdc_graph);
-      fgb.PrimaryOutput("Output", fdc->OutputPort(0));
+      auto dev_node = gb.SenFusedDeviceCompute("SenFusedDeviceNode_0", {dci_ti},
+                                               {dci_node}, sub_graph);
+      gb.PrimaryOutput("Output", dev_node->OutputPort(0));
     } else {
-      sendnn::NodePtr inp_node = fgb.PrimaryInput("Input", dci_ti);
-      auto fdc = fgb.SenFusedDeviceCompute("SenFusedDeviceNode_0", {dci_ti},
-                                           {inp_node}, fdc_graph);
-      auto d2h_dci = generate_dci(dev_tensor, host2device);
-      sendnn::NodePtr d2h_dci_node = fgb.SenHostCompute(
-          "Sen2Host-HostPrep", cpu_ti, fdc, "SenDataConvert", d2h_dci);
+      sendnn::NodePtr inp_node = gb.PrimaryInput("Input", dci_ti);
+      auto dev_node = gb.SenFusedDeviceCompute("SenFusedDeviceNode_0", {dci_ti},
+                                               {inp_node}, sub_graph);
+      auto dci = generate_dci(dev_tensor, host2device);
+      auto dci_node = gb.SenHostCompute("Sen2Host-HostPrep", cpu_ti, dev_node,
+                                        "SenDataConvert", dci);
 
-      fgb.PrimaryOutput("Output", d2h_dci_node->OutputPort(0));
+      gb.PrimaryOutput("Output", dci_node->OutputPort(0));
     }
 
-    SEN_THROW_NOK(fgb.Finalize(&exec_graph));
+    SEN_THROW_NOK(gb.Finalize(&exec_graph));
   }
 
   sendnn::SegmentTable segment_table = {
@@ -337,7 +346,7 @@ auto create_dma_graph(const at::Tensor& self, const at::Tensor& dst,
       sendnn::Segment::PROGRAM(128),
   };
   // STAGE 2: SenSuperNodeV2 graph
-  sendnn::Graph g;
+  sendnn::Graph g2_graph;
   {  // SenSuperNodeV2 graph
     flex::FlexGraphBuilder gb;
 
@@ -349,24 +358,23 @@ auto create_dma_graph(const at::Tensor& self, const at::Tensor& dst,
 
     std::string k_uuid = "dma-network";
     sendnn::attributes::SenPartitionInit part_init;
-    part_init.network_uuid_ = k_uuid;
+    part_init.network_uuid_ = "dma-network";
     part_init.partition_idx_ = 0;
     part_init.segment_table_ = segment_table;
 
-    auto sn_exec =
+    auto sn =
         gb.SenSuperNodeV2("SenSuperNodeV2_0", {out_ti}, {inp_node}, k_uuid, 0,
                           1, part_init, exec_graph, {}, false, true, true);
+    gb.PrimaryOutput("Output", {0, sn});
 
-    gb.PrimaryOutput("Output", {0, sn_exec});
-
-    SEN_THROW_NOK(gb.Finalize(&g));
+    SEN_THROW_NOK(gb.Finalize(&g2_graph));
   }
 
   // STAGE 3:
   std::shared_ptr<sendnn::GraphLoader> gl;
   gl = std::make_shared<sendnn::GraphLoader>(GlobalRuntime::get());
   {
-    SEN_THROW_NOK(gl->LoadGraph(g));
+    SEN_THROW_NOK(gl->LoadGraph(g2_graph));
     SEN_THROW_NOK(gl->CompileGraph());
     SEN_THROW_NOK(gl->ParseGraph());
   }
