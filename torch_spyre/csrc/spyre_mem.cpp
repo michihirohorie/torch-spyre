@@ -245,7 +245,7 @@ auto generate_dci(const at::Tensor* tensor, bool host2device) -> std::string {
   return s.str();
 }
 
-auto CreateDMAGraph(const at::Tensor& self, const at::Tensor& dst,
+auto create_dma_graph(const at::Tensor& self, const at::Tensor& dst,
                     bool host2device) -> std::shared_ptr<sendnn::GraphLoader> {
   /* self = source
    * dst  = destination
@@ -373,7 +373,7 @@ auto CreateDMAGraph(const at::Tensor& self, const at::Tensor& dst,
   return gl;
 }
 auto copy_host_to_device(const at::Tensor& self, const at::Tensor& dst) {
-  std::shared_ptr<sendnn::GraphLoader> gl = CreateDMAGraph(self, dst, true);
+  std::shared_ptr<sendnn::GraphLoader> gl = create_dma_graph(self, dst, true);
   if (!gl) {
     DEBUGINFO("GraphLoader is null!");
     return;
@@ -392,7 +392,7 @@ auto copy_host_to_device(const at::Tensor& self, const at::Tensor& dst) {
   SEN_THROW_NOK(gl->Copy(sendnn::Outputs(), {inp_tensor}, sn_idx));
 }
 auto copy_device_to_host(const at::Tensor& self, const at::Tensor& dst) {
-  std::shared_ptr<sendnn::GraphLoader> gl = CreateDMAGraph(self, dst, false);
+  std::shared_ptr<sendnn::GraphLoader> gl = create_dma_graph(self, dst, false);
   // execute
   constexpr int sn_idx = 0;
   constexpr int tensor_idx = 0;
