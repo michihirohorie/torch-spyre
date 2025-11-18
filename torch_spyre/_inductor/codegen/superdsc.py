@@ -19,10 +19,13 @@ from .data_ops import (
     generate_slice,
     generate_transpose,
     generate_transpose_3d_stick,
+    generate_transpose_4d_stick,
 )
 
 
-def generate_sdsc(pointers, *, op, dimensions, inputs, outputs, reduction, **kwargs):
+def generate_sdsc(
+    pointers, *, op, dimensions, inputs, outputs, reduction, **kwargs
+):
     if op == MATMUL_REDUCTION_OP:
         return generate_matmul(
             pointers,
@@ -61,13 +64,33 @@ def generate_sdsc(pointers, *, op, dimensions, inputs, outputs, reduction, **kwa
         )
     if op == TRANSPOSE_OP and len(dimensions) == 3:
         transposed_dims = [
-            dim % len(dimensions) for dim in kwargs["op_info"]["transposed_dims"]
+            dim % len(dimensions)
+            for dim in kwargs["op_info"]["transposed_dims"]
         ]
         is_stick_transpose = (
             0 in transposed_dims or 1 in transposed_dims
         ) and 2 in transposed_dims
         if is_stick_transpose:
             return generate_transpose_3d_stick(
+                pointers,
+                op=op,
+                dimensions=dimensions,
+                inputs=inputs,
+                outputs=outputs,
+                transposed_dims=transposed_dims,
+                **kwargs,
+            )
+        else:
+            # Non-stick transpose currently unsupported
+            raise Unsupported("Transposition not changing the stick dimension")
+    if op == TRANSPOSE_OP and len(dimensions) == 4:
+        transposed_dims = [
+            dim % len(dimensions)
+            for dim in kwargs["op_info"]["transposed_dims"]
+        ]
+        is_supported = 2 in transposed_dims and 3 in transposed_dims
+        if is_supported:
+            return generate_transpose_4d_stick(
                 pointers,
                 op=op,
                 dimensions=dimensions,

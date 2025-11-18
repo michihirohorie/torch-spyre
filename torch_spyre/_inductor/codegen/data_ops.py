@@ -23,7 +23,9 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                     "reshape": {
                         "coreIdsUsed_": [0],
                         "dimPool_": ["mb", "out"],
-                        "primaryDs_": [{"name_": "pds0", "dimNames": ["mb", "out"]}],
+                        "primaryDs_": [
+                            {"name_": "pds0", "dimNames": ["mb", "out"]}
+                        ],
                         "labeledDs_": [
                             {
                                 "pdsName_": "pds0",
@@ -49,7 +51,8 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[inputs[0]["name"]] // 128
+                                                    pointers[inputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -76,7 +79,8 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                         ],
                                     },
                                 ],
-                                "hbmStartAddress_": pointers[inputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[inputs[0]["name"]]
+                                // 128,
                             },
                             {
                                 "pdsName_": "pds0",
@@ -106,7 +110,8 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[outputs[0]["name"]] // 128
+                                                    pointers[outputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -133,7 +138,8 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                         ],
                                     },
                                 ],
-                                "hbmStartAddress_": pointers[outputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[outputs[0]["name"]]
+                                // 128,
                             },
                         ],
                         "op": {
@@ -167,13 +173,17 @@ def generate_transpose(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     "inpPieceOrder": [
                                         f"p{i % 2}"
                                         for i in range(
-                                            dimensions[0] * dimensions[1] // 4096
+                                            dimensions[0]
+                                            * dimensions[1]
+                                            // 4096
                                         )
                                     ],
                                     "outPieceOrder": [
                                         f"p{i % 2}"
                                         for i in range(
-                                            dimensions[0] * dimensions[1] // 4096
+                                            dimensions[0]
+                                            * dimensions[1]
+                                            // 4096
                                         )
                                     ],
                                 }
@@ -252,7 +262,8 @@ def generate_transpose_3d_stick(
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[inputs[0]["name"]] // 128
+                                                    pointers[inputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -298,7 +309,8 @@ def generate_transpose_3d_stick(
                                         ],
                                     },
                                 ],
-                                "hbmStartAddress_": pointers[inputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[inputs[0]["name"]]
+                                // 128,
                             },
                             {
                                 "pdsName_": "pds0",
@@ -307,7 +319,9 @@ def generate_transpose_3d_stick(
                                 "layoutDimOrder_": ["out", "mb", "x"]
                                 if transpose_0_2
                                 else ["mb", "x", "out"],
-                                "stickDimOrder_": ["mb" if transpose_0_2 else "x"],
+                                "stickDimOrder_": [
+                                    "mb" if transpose_0_2 else "x"
+                                ],
                                 "dimToLayoutSize_": {
                                     "mb": dimensions[0],
                                     "out": dimensions[-1],
@@ -349,7 +363,8 @@ def generate_transpose_3d_stick(
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[outputs[0]["name"]] // 128
+                                                    pointers[outputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -395,7 +410,8 @@ def generate_transpose_3d_stick(
                                         ],
                                     },
                                 ],
-                                "hbmStartAddress_": pointers[outputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[outputs[0]["name"]]
+                                // 128,
                             },
                         ],
                         "op": {
@@ -438,16 +454,20 @@ def generate_transpose_3d_stick(
                                                 * dimensions[0]
                                                 // 64
                                                 if transpose_0_2
-                                                else dimensions[0] * dimensions[-1],
+                                                else dimensions[0]
+                                                * dimensions[-1],
                                             },
                                         },
                                         "l3su": {
                                             "type_": "stride",
                                             "offset_": {
-                                                "mb": 64 if transpose_0_2 else 1,
+                                                "mb": 64
+                                                if transpose_0_2
+                                                else 1,
                                                 "out": dimensions[-1]
                                                 if transpose_0_2
-                                                else dimensions[0] * dimensions[1],
+                                                else dimensions[0]
+                                                * dimensions[1],
                                                 "x": dimensions[-1]
                                                 * dimensions[0]
                                                 // 64
@@ -498,7 +518,9 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                     "reshape": {
                         "coreIdsUsed_": [0],
                         "dimPool_": ["mb", "out"],
-                        "primaryDs_": [{"name_": "pds0", "dimNames": ["mb", "out"]}],
+                        "primaryDs_": [
+                            {"name_": "pds0", "dimNames": ["mb", "out"]}
+                        ],
                         "labeledDs_": [
                             {
                                 "pdsName_": "pds0",
@@ -528,7 +550,8 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[inputs[0]["name"]] // 128
+                                                    pointers[inputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -540,7 +563,8 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     }
                                     for i in range(dimensions[0] // 64)
                                 ],
-                                "hbmStartAddress_": pointers[inputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[inputs[0]["name"]]
+                                // 128,
                             },
                             {
                                 "pdsName_": "pds0",
@@ -570,7 +594,8 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                                 "type": "hbm",
                                                 "memId": [-1],
                                                 "startAddr": [
-                                                    pointers[outputs[0]["name"]] // 128
+                                                    pointers[outputs[0]["name"]]
+                                                    // 128
                                                 ],
                                             },
                                             {
@@ -582,7 +607,8 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     }
                                     for i in range(dimensions[0] // 64)
                                 ],
-                                "hbmStartAddress_": pointers[outputs[0]["name"]] // 128,
+                                "hbmStartAddress_": pointers[outputs[0]["name"]]
+                                // 128,
                             },
                         ],
                         "op": {
@@ -612,10 +638,273 @@ def generate_slice(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                         },
                                     },
                                     "inpPieceOrder": [
-                                        f"p{i}" for i in range(dimensions[0] // 64)
+                                        f"p{i}"
+                                        for i in range(dimensions[0] // 64)
                                     ],
                                     "outPieceOrder": [
-                                        f"p{i}" for i in range(dimensions[0] // 64)
+                                        f"p{i}"
+                                        for i in range(dimensions[0] // 64)
+                                    ],
+                                }
+                            },
+                            "numClToUse": 1,
+                            "cl0ToLxOffsetLU": 0,
+                            "cl0ToLxOffsetSU": 0,
+                        },
+                    }
+                }
+            ],
+        }
+    }
+
+
+def generate_transpose_4d_stick(
+    pointers, *, op, dimensions, inputs, outputs, **kwargs
+):
+    return {
+        "reshape": {
+            "numCoresUsed_": 1,
+            "dscs_": [],
+            "datadscs_": [
+                {
+                    "reshape": {
+                        "coreIdsUsed_": [0],
+                        "dimPool_": ["mb", "out", "x", "y"],
+                        "primaryDs_": [
+                            {
+                                "name_": "pds0",
+                                "dimNames": ["mb", "out", "y", "x"],
+                            }
+                        ],
+                        "labeledDs_": [
+                            {
+                                "pdsName_": "pds0",
+                                "wordLength": 2,
+                                "dataformat": "SEN169_FP16",
+                                "layoutDimOrder_": ["mb", "out", "y", "x"],
+                                "stickDimOrder_": ["out"],
+                                "dimToLayoutSize_": {
+                                    "mb": dimensions[2],
+                                    "out": dimensions[-1],
+                                    "x": dimensions[1],
+                                    "y": dimensions[0],
+                                },
+                                "dimToStickSize_": {"out": 64},
+                                "validGap_": {
+                                    "mb": [[dimensions[2], 0]],
+                                    "out": [[dimensions[-1], 0]],
+                                    "x": [[dimensions[1], 0]],
+                                    "y": [[dimensions[0], 0]],
+                                },
+                                "PieceInfo": [
+                                    {
+                                        "key_": "p0",
+                                        "dimToSize_": {
+                                            "mb": 64,
+                                            "out": 64,
+                                            "x": 1,
+                                            "y": 1,
+                                        },
+                                        "validGap_": {
+                                            "out": [[64, 0]],
+                                            "mb": [[64, 0]],
+                                            "x": [[1, 0]],
+                                            "y": [[1, 0]],
+                                        },
+                                        "PlacementInfo": [
+                                            {
+                                                "type": "hbm",
+                                                "memId": [-1],
+                                                "startAddr": [
+                                                    pointers[inputs[0]["name"]]
+                                                    // 128
+                                                ],
+                                            },
+                                            {
+                                                "type": "lx",
+                                                "memId": [0],
+                                                "startAddr": [0],
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "key_": "p1",
+                                        "dimToSize_": {
+                                            "mb": 64,
+                                            "out": 64,
+                                            "x": 1,
+                                            "y": 1,
+                                        },
+                                        "validGap_": {
+                                            "out": [[64, 0]],
+                                            "mb": [[64, 0]],
+                                            "x": [[1, 0]],
+                                            "y": [[1, 0]],
+                                        },
+                                        "PlacementInfo": [
+                                            {
+                                                "type": "hbm",
+                                                "memId": [-1],
+                                                "startAddr": [0],
+                                            },
+                                            {
+                                                "type": "lx",
+                                                "memId": [0],
+                                                "startAddr": [8192],
+                                            },
+                                        ],
+                                    },
+                                ],
+                                "hbmStartAddress_": pointers[inputs[0]["name"]]
+                                // 128,
+                            },
+                            {
+                                "pdsName_": "pds0",
+                                "wordLength": 2,
+                                "dataformat": "SEN169_FP16",
+                                "layoutDimOrder_": ["out", "mb", "y", "x"],
+                                "stickDimOrder_": ["mb"],
+                                "dimToLayoutSize_": {
+                                    "mb": dimensions[2],
+                                    "out": dimensions[-1],
+                                    "x": dimensions[1],
+                                    "y": dimensions[0],
+                                },
+                                "dimToStickSize_": {"mb": 64},
+                                "validGap_": {
+                                    "mb": [[dimensions[2], 0]],
+                                    "out": [[dimensions[-1], 0]],
+                                    "x": [[dimensions[1], 0]],
+                                    "y": [[dimensions[0], 0]],
+                                },
+                                "PieceInfo": [
+                                    {
+                                        "key_": "p0",
+                                        "dimToSize_": {
+                                            "mb": 64,
+                                            "out": 64,
+                                            "x": 1,
+                                            "y": 1,
+                                        },
+                                        "validGap_": {
+                                            "out": [[64, 0]],
+                                            "mb": [[64, 0]],
+                                            "x": [[1, 0]],
+                                            "y": [[1, 0]],
+                                        },
+                                        "PlacementInfo": [
+                                            {
+                                                "type": "hbm",
+                                                "memId": [-1],
+                                                "startAddr": [
+                                                    pointers[outputs[0]["name"]]
+                                                    // 128
+                                                ],
+                                            },
+                                            {
+                                                "type": "lx",
+                                                "memId": [0],
+                                                "startAddr": [16384],
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "key_": "p1",
+                                        "dimToSize_": {
+                                            "mb": 64,
+                                            "out": 64,
+                                            "x": 1,
+                                            "y": 1,
+                                        },
+                                        "validGap_": {
+                                            "out": [[64, 0]],
+                                            "mb": [[64, 0]],
+                                            "x": [[1, 0]],
+                                            "y": [[1, 0]],
+                                        },
+                                        "PlacementInfo": [
+                                            {
+                                                "type": "hbm",
+                                                "memId": [-1],
+                                                "startAddr": [0],
+                                            },
+                                            {
+                                                "type": "lx",
+                                                "memId": [0],
+                                                "startAddr": [24576],
+                                            },
+                                        ],
+                                    },
+                                ],
+                                "hbmStartAddress_": pointers[outputs[0]["name"]]
+                                // 128,
+                            },
+                        ],
+                        "op": {
+                            "name": "ReStickifyOpWithPTHBM",
+                            "coreIDtoANInfo": {
+                                "0": {
+                                    "loopCount": {
+                                        "out": dimensions[2] // 64,
+                                        "mb": dimensions[-1] // 64,
+                                        "x": dimensions[1],
+                                        "y": dimensions[0],
+                                    },
+                                    "loopCountL3SU": {
+                                        "out": dimensions[2] // 64,
+                                        "mb": dimensions[-1] // 64,
+                                        "x": dimensions[1],
+                                        "y": dimensions[0],
+                                    },
+                                    "addr_info_": {
+                                        "l3lu": {
+                                            "type_": "stride",
+                                            "offset_": {
+                                                "mb": dimensions[2],
+                                                "out": 64,
+                                                "x": dimensions[-1]
+                                                * dimensions[2]
+                                                * dimensions[0]
+                                                // 64,
+                                                "y": dimensions[-1]
+                                                * dimensions[2]
+                                                // 64,
+                                            },
+                                        },
+                                        "l3su": {
+                                            "type_": "stride",
+                                            "offset_": {
+                                                "mb": 64,
+                                                "out": dimensions[-1],
+                                                "x": dimensions[-1]
+                                                * dimensions[2]
+                                                * dimensions[0]
+                                                // 64,
+                                                "y": dimensions[-1]
+                                                * dimensions[2]
+                                                // 64,
+                                            },
+                                        },
+                                    },
+                                    "inpPieceOrder": [
+                                        f"p{i % 2}"
+                                        for i in range(
+                                            dimensions[0]
+                                            * dimensions[1]
+                                            * dimensions[2]
+                                            * dimensions[-1]
+                                            // (64 * 64)
+                                        )
+                                    ],
+                                    "outPieceOrder": [
+                                        f"p{i % 2}"
+                                        for i in range(
+                                            dimensions[0]
+                                            * dimensions[1]
+                                            * dimensions[2]
+                                            * dimensions[-1]
+                                            // (64 * 64)
+                                        )
                                     ],
                                 }
                             },
