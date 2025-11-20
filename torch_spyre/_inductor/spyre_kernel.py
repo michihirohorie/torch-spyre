@@ -39,7 +39,7 @@ from .constants import (
 )
 from . import Unsupported
 from .opoverrides import SpyreKernelOverrides
-from .opfuncs import UNIMPLEMENTED, get_spyre_op
+from .opfuncs import UNIMPLEMENTED, get_spyre_op, is_data_op
 
 
 @dataclass
@@ -81,9 +81,17 @@ class SpyreKernelCSEVariable(CSEVariable):
         super().__init__(name, bounds, dtype)
 
     def update_on_args(self, name, args, kwargs):
+        print(
+            "DEBUG:self=", self, ", ", name, ", ", args, ", ", kwargs, ", ", self.bounds
+        )
         if name == "constant":
+            print("DEBUG:constant=", args[0], ", ", args[1])
             V.kernel.compute_inputs.append(Constant(args[0], args[1]))
+        elif is_data_op(name):
+            print("DEBUG:update_on_args, data_op=", name)
+            V.kernel.record_data_op(name)
         else:
+            print("DEBUG:update_on_args:", name)
             V.kernel.record_compute_op(name, False)
 
 
@@ -102,16 +110,25 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
         self.op_info: dict[str, Any] = {}
         self.compute_inputs: list[TensorAccess | Constant] = []
         self.compute_output: Optional[TensorAccess] = None
+        print("DEBUG:spyre_op=", self.spyre_op, ", inputs=", self.compute_inputs)
 
     def create_cse_var(self, name, bounds=None, dtype=None):
+        print("DEBUG:create_cse_var=", self, ", ", name, ", ", bounds, ", ", dtype)
         return SpyreKernelCSEVariable(name, bounds, dtype)
 
     def lookup_cse_var(self, name: str):
+        print("DEBUG:lookup_cse_var=", self, ", ", name)
         return self.cse.varname_map[re.sub(r"\[.*", "", name)]
+
+    def record_data_op(self, op: str):
+        self.spyre_op = get_spyre_op(op)
+        if hasattr(self.current_node.node.data, "op_info"):  # type: ignore[union-attr]
+            self.op_info.update(self.current_node.node.data.op_info)  # type: ignore[union-attr]
 
     def record_compute_op(self, op: str, is_reduction: bool):
         if V.kernel.compute_op != "":
             raise Unsupported(f"multi-op kernel: {V.kernel.compute_op} {op}")
+        print("DEBUG:op=", op)
         self.compute_op = op
         self.spyre_op = get_spyre_op(op)
         self.compute_op_is_reduction = is_reduction
@@ -120,6 +137,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
 
     def load(self, name: str, index: sympy.Expr):
         """Codegen a load from an InputBuffer"""
+        print("DEBUG:load=", name)
         var = self.args.input(name)
         dtype = V.graph.get_dtype(name)
         index = sympy_subs(index, V.graph.sizevars.precomputed_replacements)
@@ -133,6 +151,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
         value: CSEVariable,
         mode: StoreMode = None,
     ) -> None:
+        print("DEBUG:store=", name)
         """Codegen a store to an OutputBuffer"""
         var = self.args.output(name)
         dtype = V.graph.get_dtype(name)
@@ -140,6 +159,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
         if self.compute_output is not None:
             raise Unsupported(f"multi-output kernel {self.compute_output.name} {name}")
         self.compute_output = TensorAccess(name, index, dtype)
+        print("DEBUG:compute_output=", self.compute_output)
         self.body.writeline(DeferredLine(name, f"{var}"))
 
     def reduction(
@@ -175,6 +195,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
         """
         Return the iteration space implied by the index expression
         """
+        print("DEBUG:index=", index)
         strides = self.get_strides(index)
         ordered_strides: Sequence[tuple[sympy.Symbol, sympy.Expr]] = sorted(
             strides.items(), key=lambda item: item[1], reverse=True
@@ -191,6 +212,12 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
         That compilation has caused compute_op, compute_inputs, and compute_output to be populated.
         Using that information, we compute the iteration space of the op and build a KernelSummary.
         """
+        print(
+            "DEBUG:analyze_kernel:spyre_op=",
+            self.spyre_op,
+            ", compute_op=",
+            self.compute_op,
+        )
         if self.compute_output is None:
             raise Unsupported("kernel with no output")
 
@@ -314,7 +341,9 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
             scales.append(scale)
             return KernelSummary(di, scales, args, self.op_info)
         elif not self.spyre_op == "":
+            print("DEBUG:analyze_kernel:NOTEMPTY:spyre_op=", self.spyre_op)
             # Pointwise compute ops are defined by the output's index
+            print("DEBUG:index=", self.compute_output.index)
             di = self.analyze_index_expr(self.compute_output.index)
             for input in self.compute_inputs:
                 if isinstance(input, TensorAccess):
@@ -330,6 +359,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
                     )
                     scales.append(scale)
                 else:
+                    print("DEBUG:input=", input.value, ", type=", input.dtype)
                     args.append(ConstantArg(input.value, input.dtype))
                     scales.append([-1] * len(di))
             scale = self.analyze_tensor_access(di, self.compute_output.index)
@@ -343,6 +373,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
             scales.append(scale)
             return KernelSummary(di, scales, args, self.op_info)
         else:
+            print("DEBUG:analyze_kernel:ELSE:spyre_op=", self.spyre_op)
             # Reshapes and transposes take exactly one input and use both indexes
             if not len(self.compute_inputs) == 1:
                 raise Unsupported(f"data op has {len(self.compute_inputs)} inputs")
@@ -390,6 +421,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
     def codegen_kernel(self):
         """Codegen the body of this kernel by constructing its KernelSpec"""
         buf = IndentedBuffer()
+        print("DEBUG:codegen_kernel:spyre_op=", self.spyre_op)
         if self.spyre_op == UNIMPLEMENTED:
             buf.writeline(f"UnimplementedOp(op='{self.compute_op}')")
         else:
