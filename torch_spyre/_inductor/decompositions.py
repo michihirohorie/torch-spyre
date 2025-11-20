@@ -18,6 +18,13 @@ import torch
 from torch._inductor.decomposition import register_decomposition
 
 
+# List of decompositions to be re-defined in this file
+decomps_to_exclude = [torch.ops.aten.cat.default]
+torch._decomp.remove_decompositions(
+    torch._inductor.decomposition.decompositions, decomps_to_exclude
+)
+
+
 @register_decomposition([torch.ops.spyre.compact])
 def compact_decomp(x: torch.Tensor) -> torch.Tensor:
     return torch.ops.spyre.slice(torch.ops.spyre.swap(x))
@@ -34,6 +41,23 @@ def layernorm_decomp(
     mean = torch.ops.spyre.exx2(input, 1.0 / normalized_shape[0], False)
     norm_mean = torch.ops.spyre.layernormscale(mean, eps)
     return torch.ops.spyre.layernormnorm(input, mean, norm_mean, weight, bias)
+
+
+# def spyre_new_empty(size: list[int], device: torch.device) -> torch.Tensor:
+##    return torch.ops.spyre.new_empty(size, device)
+#    pass
+
+
+@register_decomposition([torch.ops.aten.cat.default])
+def decompose_cat(
+    tensors: list[torch.Tensor],
+    dim: int = 0,
+) -> torch.Tensor:
+    orig_decomp = torch._inductor.decomposition.cat(tensors, dim)
+    if orig_decomp == NotImplemented:
+        return torch.ops.spyre.overwrite(tensors, dim)
+    else:
+        return orig_decomp
 
 
 """

@@ -89,5 +89,23 @@ class SpyreKernelOverrides(OpOverrides):
     def where(x, y, z):
         return f"spyre.where({x}, {y}, {z})"
 
+    @staticmethod
+    def cat(a, b):
+        return f"spyre.cat({a}, {b})"
+
+    #    @staticmethod
+    #    def cat(a, b, c, d):
+    #        return f"spyre.cat({a}, {b}, {c}, {d})"
+
+    #    @staticmethod
+    #    def cat(a, b, c):
+    #        return f"spyre.cat({a}, {b}, {c})"
+
+    @staticmethod
+    #    def new_empty(a, b):
+    #        return f"spyre.new_empty({a}, {b})"
+    def new_empty():
+        return "spyre.new_empty()"
+
 
 SpyreKernelOverrides._initialize_pointwise_overrides("halide")

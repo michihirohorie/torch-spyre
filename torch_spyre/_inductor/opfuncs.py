@@ -16,6 +16,7 @@ UNIMPLEMENTED = "unimplemented"
 
 
 opfunc_mapping: dict[str, str] = {}
+data_ops: dict[str, str] = {}
 
 
 def _initialize_opfunc_mapping():
@@ -75,7 +76,14 @@ def _initialize_opfunc_mapping():
     pointwise_ops["ge"] = "greaterequal"
     pointwise_ops["where"] = "where3"
 
-    return pointwise_ops | reductions
+    same_name = [
+        "cat",
+        "new_empty",
+    ]
+    for i in same_name:
+        data_ops[i] = i
+
+    return pointwise_ops | reductions | data_ops
 
 
 def get_spyre_op(op: str) -> str:
@@ -86,3 +94,10 @@ def get_spyre_op(op: str) -> str:
 
     spyre_op = opfunc_mapping.get(op, UNIMPLEMENTED)
     return spyre_op
+
+
+def is_data_op(op: str) -> bool:
+    if not data_ops:
+        opfunc_mapping.update(_initialize_opfunc_mapping())
+
+    return data_ops.get(op) is not None

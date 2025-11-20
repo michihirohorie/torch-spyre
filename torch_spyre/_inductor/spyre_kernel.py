@@ -39,7 +39,7 @@ from .constants import (
 )
 from . import Unsupported
 from .opoverrides import SpyreKernelOverrides
-from .opfuncs import UNIMPLEMENTED, get_spyre_op
+from .opfuncs import UNIMPLEMENTED, get_spyre_op, is_data_op
 
 
 @dataclass
@@ -83,6 +83,8 @@ class SpyreKernelCSEVariable(CSEVariable):
     def update_on_args(self, name, args, kwargs):
         if name == "constant":
             V.kernel.compute_inputs.append(Constant(args[0], args[1]))
+        elif is_data_op(name):
+            V.kernel.record_data_op(name)
         else:
             V.kernel.record_compute_op(name, False)
 
@@ -108,6 +110,11 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
 
     def lookup_cse_var(self, name: str):
         return self.cse.varname_map[re.sub(r"\[.*", "", name)]
+
+    def record_data_op(self, op: str):
+        self.spyre_op = get_spyre_op(op)
+        if hasattr(self.current_node.node.data, "op_info"):  # type: ignore[union-attr]
+            self.op_info.update(self.current_node.node.data.op_info)  # type: ignore[union-attr]
 
     def record_compute_op(self, op: str, is_reduction: bool):
         if V.kernel.compute_op != "":

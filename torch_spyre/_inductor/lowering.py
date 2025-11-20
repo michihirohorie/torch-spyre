@@ -251,3 +251,94 @@ def lower_softplus(x, beta=1.0, threshold=20.0):
     )
     pw.realize()
     return pw
+
+
+lowering.register_op_dtype_propagation_rules(
+    "cat", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
+)
+
+
+@lowering.register_lowering(torch.ops.spyre.overwrite)
+def lower_overwrite(tensors, dim):
+    #    fn = lowering.ops_wrapper(torch.ops.aten.cat.__name__)
+
+    out_shape = [*list(tensors[0].shape)]
+    offsets = [ops.Integer(0)]
+    sizes = [ops.Integer(0)]
+
+    total = 0
+    for t in tensors:
+        for i, s in enumerate(t.shape):
+            if i == dim:
+                total += s
+                sizes.append(s)
+                offsets.append(total)
+    #                offsets.append(Symbol(total))
+    out_shape[dim] = total
+
+    def inner_fn(index):
+        #        index = [ops.index(i) if not isinstance(i, OpsValue) else i for i in index]
+        index = [ops.add(i, 0) for i in index]
+        vals = []
+        conds = []
+        mapping = [*index]
+
+        for i, t in enumerate(tensors):
+            cond = ops.logical_and(
+                ops.logical_le(offsets[i], index[dim]),
+                ops.logical_lt(index[dim], offsets[i] + out_shape[dim]),
+            )
+            conds.append(cond)
+            mapping[dim] = index[dim] - offsets[i]
+            vals.append(
+                # Need to give all the index. Error occurs with dim slice 'index[dim] - offsets[i]'
+                t.make_loader()(mapping)
+            )
+
+        out = None
+        for i in range(len(vals)):
+            out = ops.where(conds[i], vals[i], out)
+
+        return out
+
+    input = tensors[0]
+    pw = SpyrePointwise.create(
+        device=input.get_device(),
+        dtype=input.get_dtype(),
+        inner_fn=inner_fn,
+        ranges=out_shape,
+        origin_node=input.get_origin_node(),
+        traceback=input.get_traceback(),
+        #        op_info={"constants": {"dim": dim, "offset": offset}},
+        op_info={"constants": {"dim": dim}},
+    )
+    pw.realize()
+    return pw
+
+
+# lowering.register_op_dtype_propagation_rules(
+#    "new_empty", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
+# )
+
+
+# @lowering.register_lowering(torch.ops.spyre.new_empty)
+# def lower_new_empty(size, device):
+#    fn = lowering.ops_wrapper(torch.ops.spyre.new_empty.__name__)
+#
+#    def inner_fn(index):
+#        #        return fn(size, device)
+#        return fn()
+#
+#    pw = Pointwise.create(
+#        inner_fn=inner_fn,
+#        dtype=torch.float16,
+#        device=device,
+#        ranges=size,
+#    )
+#    pw.realize()
+#    return pw
+#
+#
+##    layout = FixedLayout(device, torch.float16, size)
+##    bf = Buffer(name=name, layout=layout)
+##    return TensorBox.create(bf)
