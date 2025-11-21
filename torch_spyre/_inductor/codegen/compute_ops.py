@@ -63,6 +63,9 @@ def generate_sfp_op(pointers, *, op, dimensions, inputs, outputs, reduction, **k
     # implement core division for non-broadcasting 1-d pointwise ops with large enough inputs
     cores = int(os.getenv("SENCORES", "1"))
     cores = min(cores, dimensions[-1] // 64)
+    # include corelet division with core division example 
+    # TO DO: when fully supported the SENCORELETS default should be 2
+    corelets = int(os.getenv("SENCORELETS", "1"))
     if cores > 1:
         try:
             for t in tensors:
@@ -87,7 +90,7 @@ def generate_sfp_op(pointers, *, op, dimensions, inputs, outputs, reduction, **k
                 "data_": {"[0]": "0"},
             },
             "coreFoldProp_": {"factor_": cores, "label_": "core"},
-            "coreletFoldProp_": {"factor_": 1, "label_": "corelet"},
+            "coreletFoldProp_": {"factor_": corelets, "label_": "corelet"},
             "numCoresUsed_": cores,
             "coreIdToDsc_": {str(i): 0 for i in range(cores)},
             "numWkSlicesPerDim_": {
@@ -103,7 +106,7 @@ def generate_sfp_op(pointers, *, op, dimensions, inputs, outputs, reduction, **k
                 {
                     op: {
                         "numCoresUsed_": cores,
-                        "numCoreletsUsed_": 1,
+                        "numCoreletsUsed_": corelets,
                         "coreIdsUsed_": [i for i in range(cores)],
                         "N_": {
                             "name_": "n",
@@ -111,19 +114,21 @@ def generate_sfp_op(pointers, *, op, dimensions, inputs, outputs, reduction, **k
                             "x_": dimensions[1] if d3 else 0,
                             "out_": dimensions[-1],
                         },
-                        "dataStageParam_": {
+                        "dataStageParam_": { #TODO: extend coreletSplit to support splitting on "mb" cases
                             "0": {
                                 "ss_": {
                                     "name_": "core",
                                     "mb_": dimensions[0] if d2 else 0,
                                     "x_": dimensions[1] if d3 else 0,
                                     "out_": dimensions[-1] // cores,
+                                    "coreletSplit_": {"out": [dimensions[-1] // 2, dimensions[-1] // 2]} if (corelets==2 and (dimensions[-1] // cores > 64)) else {},
                                 },
                                 "el_": {
                                     "name_": "core",
                                     "mb_": dimensions[0] if d2 else 0,
                                     "x_": dimensions[1] if d3 else 0,
                                     "out_": dimensions[-1] // cores,
+                                    "coreletSplit_": {"out": [dimensions[-1] // 2, dimensions[-1] // 2]} if (corelets==2 and (dimensions[-1] // cores > 64) ) else {},
                                 },
                             }
                         },
@@ -155,7 +160,7 @@ def generate_sfp_op(pointers, *, op, dimensions, inputs, outputs, reduction, **k
                                     ],
                                     "dim_prop_attr": [
                                         {"factor_": cores, "label_": "core"},
-                                        {"factor_": 1, "label_": "corelet"},
+                                        {"factor_": corelets, "label_": "corelet"},
                                         {"factor_": 1, "label_": "time"},
                                     ],
                                     "data_": {
