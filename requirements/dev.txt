@@ -71,6 +71,8 @@ packaging==25.0
     #   huggingface-hub
     #   pytest
     #   transformers
+pathspec==0.12.1
+    # via mypy
 platformdirs==4.5.0
     # via virtualenv
 pluggy==1.6.0

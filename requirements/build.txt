@@ -44,6 +44,8 @@ numpy==2.3.5
     # via torch-spyre
 packaging==25.0
     # via build
+pathspec==0.12.1
+    # via mypy
 platformdirs==4.5.0
     # via virtualenv
 pre-commit==4.0.1
