@@ -286,13 +286,29 @@ def lower_cat(input, output, dim, offset):
     return pw
 
 
-# @lowering.register_lowering(torch.ops.spyre.new_empty)
-# def lower_new_empty(size, dtype=torch.float16, device="spyre"):
-#    pw = Pointwise.create(
-#        device="spyre",
-#        #        inner_fn=self.make_loader(),
-#        dtype=torch.float16,
-#        ranges=size,
-#    )
-#    pw.realzie()
-#    return pw
+lowering.register_op_dtype_propagation_rules(
+    "new_empty", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
+)
+
+
+@lowering.register_lowering(torch.ops.spyre.new_empty)
+def lower_new_empty(size, device):
+    fn = lowering.ops_wrapper(torch.ops.spyre.new_empty.__name__)
+
+    def inner_fn(index):
+        #        return fn(size, device)
+        return fn()
+
+    pw = Pointwise.create(
+        inner_fn=inner_fn,
+        dtype=torch.float16,
+        device=device,
+        ranges=size,
+    )
+    pw.realize()
+    return pw
+
+
+#    layout = FixedLayout(device, torch.float16, size)
+#    bf = Buffer(name=name, layout=layout)
+#    return TensorBox.create(bf)

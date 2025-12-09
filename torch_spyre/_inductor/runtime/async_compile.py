@@ -50,9 +50,7 @@ class SpyreAsyncCompile:
         inputs = []
         outputs = []
         arg_mapping = []
-        print("DEBUG:ks=", ks.args)
         for index, ts in enumerate(ks.args):
-            print("DEBUG:ts=", ts)
             if isinstance(ts, ConstantArg):
                 raise RuntimeError("TOOO: implement SDSC generation for constants")
             elif ts.is_input:

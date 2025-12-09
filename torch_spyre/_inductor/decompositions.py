@@ -43,20 +43,8 @@ def layernorm_decomp(
     return torch.ops.spyre.layernormnorm(input, mean, norm_mean, weight, bias)
 
 
-## activate_new_empty = False
-# orig_new_empty = torch.Tensor.new_empty
-#
-#
-# def spyre_new_empty(
-#    size: list[int], dtype: torch.dtype, device: torch.device
-# ) -> torch.Tensor:
-#    if input.device.type == "spyre":  # and activate_new_empty:
-#        return torch.ops.spyre.new_empty(size, device, dtype)
-#    else:
-#        return orig_new_empty(size, device, dtype)
-#
-#
-## torch.Tensor.new_empty = spyre_new_empty
+def spyre_new_empty(size: list[int], device: torch.device) -> torch.Tensor:
+    return torch.ops.spyre.new_empty(size, device)
 
 
 @register_decomposition([torch.ops.aten.cat.default])
@@ -71,15 +59,8 @@ def decompose_cat(
             expanded_size += t.size(dim)
         output_size = list(tensors[0].size())
         output_size[dim] = expanded_size
-        #        size = [torch.SymInt(s) for s in output_size]
-        #        size = [s for s in output_size]
-        #        output = torch.ops.spyre.new_empty(
-        #            output_size, tensors[0].dtype, tensors[0].device.type
-        #        )
-        #        activate_new_empty = True
-        output = tensors[0].new_empty(output_size)
-        #        activate_new_empty = False
-        output.spyre_dci = output.get_dci()
+        output = spyre_new_empty(output_size, tensors[0].device.type)
+        output.spyre_dci = output.get_spyre_layout()
         offset = 0
         for input in tensors:
             output = torch.ops.spyre.cat(

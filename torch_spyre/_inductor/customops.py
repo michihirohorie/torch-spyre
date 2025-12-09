@@ -196,24 +196,20 @@ def cat(
 @cat.register_fake
 def _(input: torch.Tensor, output: torch.Tensor, dim: int, offset: int) -> torch.Tensor:
     res = output.new_empty(output.size())
-    res.spyre_dci = output.get_dci()
+    res.spyre_dci = output.get_spyre_layout()
     return res
 
 
-# @torch.library.custom_op("spyre::new_empty", mutates_args=(), device_types="spyre")
-# def new_empty(
-#    size: list[int], dtype: torch.dtype = torch.float16, device: torch.device = "spyre"
-# ) -> torch.Tensor:
-#    pass
+@torch.library.custom_op("spyre::new_empty", mutates_args=(), device_types="spyre")
+def new_empty(size: list[int], device: torch.device) -> torch.Tensor:
+    output = torch.ones(size)
+    res = output.new_empty(size)
+    return res
 
 
-# @new_empty.register_fake
-# def _(
-#    size: list[int], dtype: torch.dtype = torch.float16, device: torch.device = "spyre"
-# ) -> torch.Tensor:
-#    #    res = torch.Tensor.new_empty([torch.SymInt(s) for s in size])
-#    #    res = torch.Tensor.new_empty(torch.Size(size))
-#    tensor = torch.ones(())
-#    res = tensor.new_empty(size)
-#    #    res.spyre_dci = output.get_dci()
-#    return res
+@new_empty.register_fake
+def _(size: list[int], device: torch.device) -> torch.Tensor:
+    tensor = torch.ones(())
+    res = tensor.new_empty(size)
+    res.spyre_dci = tensor.get_spyre_layout()
+    return res

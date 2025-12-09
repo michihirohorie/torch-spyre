@@ -78,6 +78,7 @@ def _initialize_opfunc_mapping():
 
     same_name = [
         "cat",
+        "new_empty",
     ]
     for i in same_name:
         data_ops[i] = i
