@@ -93,6 +93,10 @@ class SpyreKernelOverrides(OpOverrides):
     def cat(a, b, c, d):
         return f"spyre.cat({a}, {b}, {c}, {d})"
 
+    #    @staticmethod
+    #    def cat(a, b, c):
+    #        return f"spyre.cat({a}, {b}, {c})"
+
     @staticmethod
     #    def new_empty(a, b):
     #        return f"spyre.new_empty({a}, {b})"

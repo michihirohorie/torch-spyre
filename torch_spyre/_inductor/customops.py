@@ -186,30 +186,30 @@ def _(input: torch.Tensor, approximate: str = "none"):
     return res
 
 
-@torch.library.custom_op("spyre::cat", mutates_args=(), device_types="spyre")
+@torch.library.custom_op("spyre::overwrite", mutates_args=(), device_types="spyre")
 def cat(
-    input: torch.Tensor, output: torch.Tensor, dim: int, offset: int
+    output: torch.Tensor, input: torch.Tensor, dim: int, offset: int
 ) -> torch.Tensor:
     pass
 
 
 @cat.register_fake
-def _(input: torch.Tensor, output: torch.Tensor, dim: int, offset: int) -> torch.Tensor:
+def _(output: torch.Tensor, input: torch.Tensor, dim: int, offset: int) -> torch.Tensor:
     res = output.new_empty(output.size())
     res.spyre_dci = output.get_spyre_layout()
     return res
 
 
-@torch.library.custom_op("spyre::new_empty", mutates_args=(), device_types="spyre")
-def new_empty(size: list[int], device: torch.device) -> torch.Tensor:
-    output = torch.ones(size)
-    res = output.new_empty(size)
-    return res
-
-
-@new_empty.register_fake
-def _(size: list[int], device: torch.device) -> torch.Tensor:
-    tensor = torch.ones(())
-    res = tensor.new_empty(size)
-    res.spyre_dci = tensor.get_spyre_layout()
-    return res
+# @torch.library.custom_op("spyre::new_empty", mutates_args=(), device_types="spyre")
+# def new_empty(size: list[int], device: torch.device) -> torch.Tensor:
+#    output = torch.ones(size)
+#    res = output.new_empty(size)
+#    return res
+#
+#
+# @new_empty.register_fake
+# def _(size: list[int], device: torch.device) -> torch.Tensor:
+#    tensor = torch.ones(())
+#    res = tensor.new_empty(size)
+#    res.spyre_dci = tensor.get_spyre_layout()
+#    return res

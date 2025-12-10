@@ -43,8 +43,9 @@ def layernorm_decomp(
     return torch.ops.spyre.layernormnorm(input, mean, norm_mean, weight, bias)
 
 
-def spyre_new_empty(size: list[int], device: torch.device) -> torch.Tensor:
-    return torch.ops.spyre.new_empty(size, device)
+# def spyre_new_empty(size: list[int], device: torch.device) -> torch.Tensor:
+##    return torch.ops.spyre.new_empty(size, device)
+#    pass
 
 
 @register_decomposition([torch.ops.aten.cat.default])
@@ -59,12 +60,11 @@ def decompose_cat(
             expanded_size += t.size(dim)
         output_size = list(tensors[0].size())
         output_size[dim] = expanded_size
-        output = spyre_new_empty(output_size, tensors[0].device.type)
-        output.spyre_dci = output.get_spyre_layout()
+        output = tensors[0].new_empty(output_size)
         offset = 0
         for input in tensors:
-            output = torch.ops.spyre.cat(
-                input=input, output=output, dim=dim, offset=offset
+            output = torch.ops.spyre.overwrite(
+                output=output, input=input, dim=dim, offset=offset
             )
             offset += input.size(dim)
         return output
