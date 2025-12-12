@@ -263,8 +263,8 @@ def lower_overwrite(tensors, dim):
     #    fn = lowering.ops_wrapper(torch.ops.aten.cat.__name__)
 
     out_shape = [*list(tensors[0].shape)]
-    offsets = []
-    sizes = []
+    offsets = [ops.Integer(0)]
+    sizes = [ops.Integer(0)]
 
     total = 0
     for t in tensors:
@@ -273,9 +273,12 @@ def lower_overwrite(tensors, dim):
                 total += s
                 sizes.append(s)
                 offsets.append(total)
+    #                offsets.append(Symbol(total))
     out_shape[dim] = total
 
     def inner_fn(index):
+        #        index = [ops.index(i) if not isinstance(i, OpsValue) else i for i in index]
+        index = [ops.add(i, 0) for i in index]
         vals = []
         conds = []
         mapping = [*index]
@@ -288,8 +291,9 @@ def lower_overwrite(tensors, dim):
             conds.append(cond)
             mapping[dim] = index[dim] - offsets[i]
             vals.append(
+                # Need to give all the index. Error occurs with dim slice 'index[dim] - offsets[i]'
                 t.make_loader()(mapping)
-            )  # Error occurs with 'index[dim] - offsets[i]'
+            )
 
         out = None
         for i in range(len(vals)):
