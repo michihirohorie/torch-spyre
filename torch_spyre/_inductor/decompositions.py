@@ -55,19 +55,7 @@ def decompose_cat(
 ) -> torch.Tensor:
     orig_decomp = torch._inductor.decomposition.cat(tensors, dim)
     if orig_decomp == NotImplemented:
-        expanded_size = 0
-        for t in tensors:
-            expanded_size += t.size(dim)
-        output_size = list(tensors[0].size())
-        output_size[dim] = expanded_size
-        output = tensors[0].new_empty(output_size)
-        offset = 0
-        for input in tensors:
-            output = torch.ops.spyre.overwrite(
-                output=output, input=input, dim=dim, offset=offset
-            )
-            offset += input.size(dim)
-        return output
+        return torch.ops.spyre.overwrite(tensors, dim)
     else:
         return orig_decomp
 

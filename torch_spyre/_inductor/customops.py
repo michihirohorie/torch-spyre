@@ -187,16 +187,20 @@ def _(input: torch.Tensor, approximate: str = "none"):
 
 
 @torch.library.custom_op("spyre::overwrite", mutates_args=(), device_types="spyre")
-def cat(
-    output: torch.Tensor, input: torch.Tensor, dim: int, offset: int
+def overwrite(
+    tensors: list[torch.Tensor],
+    dim: int = 0,
 ) -> torch.Tensor:
     pass
 
 
-@cat.register_fake
-def _(output: torch.Tensor, input: torch.Tensor, dim: int, offset: int) -> torch.Tensor:
-    res = output.new_empty(output.size())
-    res.spyre_dci = output.get_spyre_layout()
+@overwrite.register_fake
+def _(
+    tensors: list[torch.Tensor],
+    dim: int = 0,
+) -> torch.Tensor:
+    res = tensors[0].new_empty(tensors[0].size())
+    res.spyre_dci = tensors[0].get_spyre_layout()
     return res
 
 

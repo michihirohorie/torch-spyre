@@ -259,24 +259,54 @@ lowering.register_op_dtype_propagation_rules(
 
 
 @lowering.register_lowering(torch.ops.spyre.overwrite)
-def lower_overwrite(output, input, dim, offset):
-    fn = lowering.ops_wrapper(torch.ops.aten.cat.__name__)
+def lower_overwrite(tensors, dim):
+    #    fn = lowering.ops_wrapper(torch.ops.aten.cat.__name__)
+
+    out_shape = [*list(tensors[0].shape)]
+    offsets = []
+    sizes = []
+
+    total = 0
+    for t in tensors:
+        for i, s in enumerate(t.shape):
+            if i == dim:
+                total += s
+                sizes.append(s)
+                offsets.append(total)
+    out_shape[dim] = total
 
     def inner_fn(index):
-        loaded_inputs = [
-            output.make_loader()(index),
-            input.make_loader()(index),
-        ]
-        return fn(*loaded_inputs, dim, offset)
+        vals = []
+        conds = []
+        mapping = [*index]
 
+        for i, t in enumerate(tensors):
+            cond = ops.logical_and(
+                ops.logical_le(offsets[i], index[dim]),
+                ops.logical_lt(index[dim], offsets[i] + out_shape[dim]),
+            )
+            conds.append(cond)
+            mapping[dim] = index[dim] - offsets[i]
+            vals.append(
+                t.make_loader()(mapping)
+            )  # Error occurs with 'index[dim] - offsets[i]'
+
+        out = None
+        for i in range(len(vals)):
+            out = ops.where(conds[i], vals[i], out)
+
+        return out
+
+    input = tensors[0]
     pw = SpyrePointwise.create(
         device=input.get_device(),
         dtype=input.get_dtype(),
         inner_fn=inner_fn,
-        ranges=input.get_size(),
+        ranges=out_shape,
         origin_node=input.get_origin_node(),
         traceback=input.get_traceback(),
-        op_info={"constants": {"dim": dim, "offset": offset}},
+        #        op_info={"constants": {"dim": dim, "offset": offset}},
+        op_info={"constants": {"dim": dim}},
     )
     pw.realize()
     return pw
