@@ -188,32 +188,13 @@ def _(input: torch.Tensor, approximate: str = "none"):
 
 @torch.library.custom_op("spyre::overwrite", mutates_args=(), device_types="spyre")
 def overwrite(
-    tensors: list[torch.Tensor],
-    dim: int = 0,
+    output: torch.Tensor, input: torch.Tensor, dim: int, offset: int
 ) -> torch.Tensor:
-    pass
+    return output
 
 
 @overwrite.register_fake
-def _(
-    tensors: list[torch.Tensor],
-    dim: int = 0,
-) -> torch.Tensor:
-    res = tensors[0].new_empty(tensors[0].size())
-    res.spyre_dci = tensors[0].get_spyre_layout()
+def _(output: torch.Tensor, input: torch.Tensor, dim: int, offset: int) -> torch.Tensor:
+    res = output.new_empty(output.size())
+    res.spyre_dci = output.get_spyre_layout()
     return res
-
-
-# @torch.library.custom_op("spyre::new_empty", mutates_args=(), device_types="spyre")
-# def new_empty(size: list[int], device: torch.device) -> torch.Tensor:
-#    output = torch.ones(size)
-#    res = output.new_empty(size)
-#    return res
-#
-#
-# @new_empty.register_fake
-# def _(size: list[int], device: torch.device) -> torch.Tensor:
-#    tensor = torch.ones(())
-#    res = tensor.new_empty(size)
-#    res.spyre_dci = tensor.get_spyre_layout()
-#    return res

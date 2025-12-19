@@ -19,7 +19,7 @@ from torch._inductor.virtualized import ops
 import torch._inductor.lowering as lowering
 
 from .constants import MATMUL_REDUCTION_OP, BATCH_MATMUL_OP
-from .ir import SpyrePointwise, SpyreReduction
+from .ir import SpyrePointwise, SpyreReduction, SpyreScatter
 
 
 @lowering.register_lowering(torch.ops.aten.mm.default)
@@ -254,91 +254,33 @@ def lower_softplus(x, beta=1.0, threshold=20.0):
 
 
 lowering.register_op_dtype_propagation_rules(
-    "cat", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
+    "overwrite", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
 )
 
 
 @lowering.register_lowering(torch.ops.spyre.overwrite)
-def lower_overwrite(tensors, dim):
-    #    fn = lowering.ops_wrapper(torch.ops.aten.cat.__name__)
-
-    out_shape = [*list(tensors[0].shape)]
-    offsets = [ops.Integer(0)]
-    sizes = [ops.Integer(0)]
-
-    total = 0
-    for t in tensors:
-        for i, s in enumerate(t.shape):
-            if i == dim:
-                total += s
-                sizes.append(s)
-                offsets.append(total)
-    #                offsets.append(Symbol(total))
-    out_shape[dim] = total
+def lower_overwrite(output: torch.Tensor, input: torch.Tensor, dim: int, offset: int):
+    fn = lowering.ops_wrapper(torch.ops.spyre.overwrite.__name__)
 
     def inner_fn(index):
-        #        index = [ops.index(i) if not isinstance(i, OpsValue) else i for i in index]
-        index = [ops.add(i, 0) for i in index]
-        vals = []
-        conds = []
-        mapping = [*index]
+        return fn(input.make_loader()(index))
 
-        for i, t in enumerate(tensors):
-            cond = ops.logical_and(
-                ops.logical_le(offsets[i], index[dim]),
-                ops.logical_lt(index[dim], offsets[i] + out_shape[dim]),
-            )
-            conds.append(cond)
-            mapping[dim] = index[dim] - offsets[i]
-            vals.append(
-                # Need to give all the index. Error occurs with dim slice 'index[dim] - offsets[i]'
-                t.make_loader()(mapping)
-            )
+    def output_indexer(index):
+        out_index = [*index]
+        out_index[dim] += offset
+        return out_index
 
-        out = None
-        for i in range(len(vals)):
-            out = ops.where(conds[i], vals[i], out)
-
-        return out
-
-    input = tensors[0]
-    pw = SpyrePointwise.create(
-        device=input.get_device(),
-        dtype=input.get_dtype(),
+    sc = SpyreScatter.create(
+        device=output.get_device(),
+        dtype=output.get_dtype(),
         inner_fn=inner_fn,
-        ranges=out_shape,
-        origin_node=input.get_origin_node(),
-        traceback=input.get_traceback(),
-        #        op_info={"constants": {"dim": dim, "offset": offset}},
+        ranges=input.get_size(),
+        output_indexer=output_indexer,
+        origin_node=output.get_origin_node(),
+        traceback=output.get_traceback(),
         op_info={"constants": {"dim": dim}},
     )
-    pw.realize()
-    return pw
 
-
-# lowering.register_op_dtype_propagation_rules(
-#    "new_empty", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
-# )
-
-
-# @lowering.register_lowering(torch.ops.spyre.new_empty)
-# def lower_new_empty(size, device):
-#    fn = lowering.ops_wrapper(torch.ops.spyre.new_empty.__name__)
-#
-#    def inner_fn(index):
-#        #        return fn(size, device)
-#        return fn()
-#
-#    pw = Pointwise.create(
-#        inner_fn=inner_fn,
-#        dtype=torch.float16,
-#        device=device,
-#        ranges=size,
-#    )
-#    pw.realize()
-#    return pw
-#
-#
-##    layout = FixedLayout(device, torch.float16, size)
-##    bf = Buffer(name=name, layout=layout)
-##    return TensorBox.create(bf)
+    print("DEBUG:sc=", sc)
+    sc.realize()
+    return sc

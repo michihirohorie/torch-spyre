@@ -39,7 +39,7 @@ from .constants import (
 )
 from . import Unsupported
 from .opoverrides import SpyreKernelOverrides
-from .opfuncs import UNIMPLEMENTED, get_spyre_op, is_data_op
+from .opfuncs import UNIMPLEMENTED, get_spyre_op
 
 
 @dataclass
@@ -81,10 +81,9 @@ class SpyreKernelCSEVariable(CSEVariable):
         super().__init__(name, bounds, dtype)
 
     def update_on_args(self, name, args, kwargs):
+        print("DEBGU:update_on_args:name=", name)
         if name == "constant":
             V.kernel.compute_inputs.append(Constant(args[0], args[1]))
-        elif is_data_op(name):
-            V.kernel.record_data_op(name)
         else:
             V.kernel.record_compute_op(name, False)
 
@@ -395,6 +394,7 @@ class SpyreKernel(SIMDKernel[SpyreKernelCSEVariable]):
             return ks
 
     def codegen_kernel(self):
+        print("DEBUG:codegen_kernel=", self)
         """Codegen the body of this kernel by constructing its KernelSpec"""
         buf = IndentedBuffer()
         if self.spyre_op == UNIMPLEMENTED:

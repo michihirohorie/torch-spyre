@@ -14,6 +14,8 @@
 
 from torch._inductor.codegen.common import OpOverrides
 
+from torch._inductor.virtualized import V
+
 
 class SpyreKernelOverrides(OpOverrides):
     """
@@ -58,6 +60,18 @@ class SpyreKernelOverrides(OpOverrides):
         return f"spyre.log({x})"
 
     @staticmethod
+    def overwrite(x):
+        # Invoke update_on_args explicitly because lowering with
+        # Scatter IRNode cannot be hooked implicitly.
+        csevar = V.kernel.cse.generate(V.kernel.compute, "")
+        csevar.update_on_args("", x, {})
+        return f"spyre.overwrite({x})"
+
+    @staticmethod
+    def logical_le(x, y):
+        return f"spyre.logical_le({x}, {y})"
+
+    @staticmethod
     def reciprocal(x):
         return f"spyre.reciprocal({x})"
 
@@ -88,24 +102,6 @@ class SpyreKernelOverrides(OpOverrides):
     @staticmethod
     def where(x, y, z):
         return f"spyre.where({x}, {y}, {z})"
-
-    @staticmethod
-    def cat(a, b):
-        return f"spyre.cat({a}, {b})"
-
-    #    @staticmethod
-    #    def cat(a, b, c, d):
-    #        return f"spyre.cat({a}, {b}, {c}, {d})"
-
-    #    @staticmethod
-    #    def cat(a, b, c):
-    #        return f"spyre.cat({a}, {b}, {c})"
-
-    @staticmethod
-    #    def new_empty(a, b):
-    #        return f"spyre.new_empty({a}, {b})"
-    def new_empty():
-        return "spyre.new_empty()"
 
 
 SpyreKernelOverrides._initialize_pointwise_overrides("halide")

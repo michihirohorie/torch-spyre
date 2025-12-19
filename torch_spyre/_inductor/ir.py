@@ -22,8 +22,11 @@ from torch._inductor.ir import (
     Pointwise,
     Reduction,
     ReductionHint,
+    Scatter,
     TensorBox,
 )
+
+from torch._inductor.virtualized import V
 
 
 @ir_dataclass
@@ -61,4 +64,33 @@ class SpyreReduction(Reduction):
                 reduction_hint=reduction_hint,
                 op_info=op_info,
             )
+        )
+
+
+@ir_dataclass
+class SpyreScatter(Scatter):
+    op_info: Any
+
+    def output_indexer_args(self) -> Sequence[Sequence[Expr]]:
+        return (self._index(self.ranges),)
+
+    def output_indexer_str(self) -> str:
+        return V.KernelFormatterHandler.ir_to_string(
+            self.output_indexer, *self.output_indexer_args()
+        )
+
+    def _to_str(self, names: Sequence[str]) -> str:
+        return self.str_helper(
+            [
+                f"'{self.device.type}'",
+                str(self.dtype),
+                self.inner_fn_str(),
+            ]
+            + [
+                f"'{self.device.type}'",
+                str(self.dtype),
+                self.output_indexer_str(),
+            ]
+            + [f"{name}={getattr(self, name)}" for name in names]
+            + [f"origin_node={self.origin_node!r}"]
         )

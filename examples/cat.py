@@ -18,11 +18,11 @@ DEVICE = torch.device("spyre")
 torch.manual_seed(0xAFFE)
 
 # Create input tensor
-x = torch.rand(128, 64, dtype=torch.float16)
-y = torch.rand(128, 32, dtype=torch.float16)
+x = torch.rand(32, 128, dtype=torch.float16)
+y = torch.rand(64, 128, dtype=torch.float16)
 
 # Compute cat on the cpu
-cpu_result = torch.cat((x, y), dim=1)
+cpu_result = torch.cat((x, y), dim=0)
 print("size=", cpu_result.size())
 
 # Send input tensor to device
@@ -33,7 +33,7 @@ y_device = y.to(DEVICE)
 # eager_result = torch.cat(x_device, dim=0).cpu()
 
 # Compute cat on the device in compiled mode and get the result back to the host
-compiled_sm = torch.compile(lambda a, b: torch.cat((a, b), dim=1))
+compiled_sm = torch.compile(lambda a, b: torch.cat((a, b), dim=0))
 compiled_result = compiled_sm(x_device, y_device).cpu()
 
 # Print the results and compare them

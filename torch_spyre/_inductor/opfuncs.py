@@ -58,6 +58,7 @@ def _initialize_opfunc_mapping():
         "layernormscale",
         "log",
         "mul",
+        "overwrite",
         "reciprocal",
         "rsqrt",
         "sigmoid",
@@ -76,14 +77,7 @@ def _initialize_opfunc_mapping():
     pointwise_ops["ge"] = "greaterequal"
     pointwise_ops["where"] = "where3"
 
-    same_name = [
-        "cat",
-        "new_empty",
-    ]
-    for i in same_name:
-        data_ops[i] = i
-
-    return pointwise_ops | reductions | data_ops
+    return pointwise_ops | reductions
 
 
 def get_spyre_op(op: str) -> str:
