@@ -170,3 +170,23 @@ def _(
     max: Optional[torch.types.Number] = None,
 ):
     return input.new_empty(input.size())
+
+
+@torch.library.custom_op("spyre::overwrite", mutates_args=(), device_types="spyre")
+def overwrite(
+    input: torch.Tensor,
+    output: torch.Tensor,
+    dim: int,
+    offset: int
+) -> torch.Tensor:
+    pass
+
+
+@overwrite.register_fake
+def _(
+    input: torch.Tensor,
+    output: torch.Tensor,
+    dim: int,
+    offset: int
+) -> torch.Tensor:
+    return output

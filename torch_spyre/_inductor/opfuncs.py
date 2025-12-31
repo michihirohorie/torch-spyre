@@ -56,6 +56,7 @@ def _initialize_opfunc_mapping():
         "log",
         "mul",
         "neg",
+        "overwrite",
         "reciprocal",
         "rsqrt",
         "sigmoid",

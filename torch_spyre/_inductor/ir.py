@@ -23,6 +23,7 @@ from torch._inductor.ir import (
     Pointwise,
     Reduction,
     ReductionHint,
+    Scatter,
     TensorBox,
 )
 from torch_spyre._C import SpyreTensorLayout
@@ -30,6 +31,11 @@ from torch_spyre._C import SpyreTensorLayout
 
 @ir_dataclass
 class SpyrePointwise(Pointwise):
+    op_info: Any
+
+
+@ir_dataclass
+class SpyreScatter(Scatter):
     op_info: Any
 
 

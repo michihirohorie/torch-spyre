@@ -19,7 +19,7 @@ from torch._inductor.virtualized import ops
 import torch._inductor.lowering as lowering
 
 from .constants import MATMUL_REDUCTION_OP, BATCH_MATMUL_OP
-from .ir import SpyrePointwise, SpyreReduction
+from .ir import SpyrePointwise, SpyreReduction, SpyreScatter
 
 # Implicit fallback to an eager op does not become effective when lowering of
 # the op is registered by default. Here, we unregister ops that are falling back
@@ -294,3 +294,36 @@ def lower_clamp(x, min=None, max=None):
     )
     pw.realize()
     return pw
+
+lowering.register_op_dtype_propagation_rules(
+    "overwrite", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
+)
+
+@lowering.register_lowering(torch.ops.spyre.overwrite)
+def lower_overwrite(input, output, dim, offset):
+    fn = lowering.ops_wrapper(torch.ops.spyre.overwrite.__name__)
+
+    def inner_fn(index):
+        loaded_inputs = [
+            input.make_loader()(index),
+            output.make_loader()(index),
+        ]
+        return fn(*loaded_inputs, dim, offset)
+
+    def output_indexer(index):
+        out_index = [*index]
+        out_index[dim] += offset
+        return out_index
+
+    ss = SpyreScatter.create(
+        device=input.get_device(),
+        dtype=input.get_dtype(),
+        inner_fn=inner_fn,
+        ranges=input.get_size(),
+        output_indexer=output_indexer,
+        origin_node=input.get_origin_node(),
+        traceback=input.get_traceback(),
+        op_info={"output_offset": {"dim": dim, "offset": offset}}
+    )
+    ss.realize()
+    return ss
