@@ -87,6 +87,10 @@ def pointwise_layout(n: SchedulerNode, args: list[SchedNodeArg]) -> FixedTiledLa
     output: FixedLayout = n.node.get_layout()
     origin_node = next(iter(pw.origins))
     op = origin_node.target
+##    op = pw.get_origin_node().target
+#    op = pw.get_origin_node()
+#    if not op is None:
+#        op = op.target
     if len(args) == 1:
         x = args[0]
         x_stl = x.layout.device_layout

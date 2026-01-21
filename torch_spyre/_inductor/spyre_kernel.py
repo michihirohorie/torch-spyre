@@ -162,6 +162,16 @@ class SpyreOpFuncs:
         return PointwiseOp("neg", [a])
 
     @staticmethod
+    def overwrite(input, output, dim, offset):
+        op_info = {
+            "constants": {
+                "dim": dim,
+                "offset": offset,
+            }
+        }
+        return PointwiseOp("overwrite", [input, output], op_info)
+
+    @staticmethod
     def reciprocal(x):
         return PointwiseOp("reciprocal", [x])
 
@@ -367,6 +377,7 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
         mode: StoreMode = None,
     ) -> None:
         _ = self.args.output(name)
+        name = V.graph.scheduler.mutation_real_name.get(name, name)
         buf = V.graph.get_buffer(name)
         layout = buf.get_layout()
         if not isinstance(layout, FixedTiledLayout):
