@@ -26,6 +26,7 @@ from .data_ops import (
     generate_transpose_3d_stick,
     generate_transpose_4d_stick,
     generate_clone,
+    generate_overwrite,
 )
 
 
@@ -134,6 +135,15 @@ def generate_sdsc(pointers, *, op, dimensions, inputs, outputs, reduction, **kwa
             )
     if op == CLONE_OP:
         return generate_clone(
+            pointers,
+            op=op,
+            dimensions=dimensions,
+            inputs=inputs,
+            outputs=outputs,
+            **kwargs,
+        )
+    if op == "overwrite":
+        return generate_overwrite(
             pointers,
             op=op,
             dimensions=dimensions,

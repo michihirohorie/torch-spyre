@@ -68,6 +68,7 @@ class SpyreAsyncCompile:
                         "device_layout": ts.device_layout,
                         "host_size": ts.host_size,
                         "lx_addr": lx_addr,
+                        "ddtype": ts.device_layout.device_dtype,
                     }
                 )
                 arg_mapping.append(ts.arg_index)

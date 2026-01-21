@@ -37,4 +37,5 @@ class SpyreSDSCKernelRunner:
         g2 = os.path.join(self.code_dir, "g2.graph.cbor")
         print(f"RUN: {self.kernel_name} {g2}")
         actuals = [args[i] for i in self.arg_mapping]
+        print("DEBUG:actuals=", actuals)
         return launch_kernel(g2, actuals)
