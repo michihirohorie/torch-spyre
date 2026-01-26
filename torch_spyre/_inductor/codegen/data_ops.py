@@ -1173,10 +1173,6 @@ def generate_clone(pointers, *, op, dimensions, inputs, outputs, **kwargs):
 def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
   print(f"DEBUG:pointers={pointers}, op={op}, dimensions={dimensions}, inputs={inputs}, outputs={outputs}, kwargs={kwargs}")
   print(f"dimensions0={dimensions[0]}, dimensions1={dimensions[1]}")
-  dimensions[0] = 24
-  dimensions[1] = 128
-  outputs[0]["host_size"][0] = 128
-  outputs[0]["host_size"][1] = 128
 
   items = kwargs["op_info"]["constants"]
   dim = items["dim"]
@@ -1185,7 +1181,8 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
 
   layout = ["mb", "out"]
   dim_map = {"mb": dimensions[0], "out": dimensions[-1]}
-  offsets = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": dimensions[0]}
+#  offsets = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": dimensions[0]}
+  offsets = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": 2}
   loop_counts = {
     "mb": dimensions[0] // 64 if dimensions[0] % 64 == 0 else dimensions[0],
     "out": dimensions[-1] // 64,
@@ -1196,7 +1193,19 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
     "out": [[piece_sizes["out"], 0]],
   }
   valid_gaps = {"mb": [[dimensions[0], 0]], "out": [[dimensions[-1], 0]]}
-  piece_count = dimensions[dim] // 64 if dimensions[dim] // 64 != 0 else 1
+
+  if offset == 0 :
+    valid_gaps_out = {
+      "mb" : [ [dimensions[0], outputs[0]["host_size"][dim] - dimensions[0]] ],
+      "out" : [ [dimensions[1],0] ]
+    }
+  else:
+    valid_gaps_out = {
+      "mb" : [[0, offset], [dimensions[0], outputs[0]["host_size"][dim] - dimensions[0] - offset] ],
+      "out" : [ [dimensions[1],0] ]
+    }
+
+  piece_count = dimensions[dim] // 64# if dimensions[dim] // 64 == 0 else 1
   print("DEBUG:piece_count=", piece_count)
 
   return { 
@@ -1265,7 +1274,7 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
               "stickDimOrder_" : ["out"],
               "dimToLayoutSize_" : {"mb" : outputs[0]["host_size"][0], "out" : outputs[0]["host_size"][1]},
               "dimToStickSize_" : {"out" : 64},
-              "validGap_" : {"mb" : [ [dimensions[0],104] ], "out" : [ [dimensions[1],0] ]},
+              "validGap_" : valid_gaps_out,
               "totElements" : outputs[0]["host_size"][0] * outputs[0]["host_size"][1],
               "PieceInfo": [
                 {
