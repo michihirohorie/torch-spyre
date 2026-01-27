@@ -162,14 +162,14 @@ class SpyreOpFuncs:
         return PointwiseOp("neg", [a])
 
     @staticmethod
-    def overwrite(input, output, dim, offset):
+    def overwrite(input, dim, offset):
         op_info = {
             "constants": {
                 "dim": dim,
                 "offset": offset,
             }
         }
-        return PointwiseOp("overwrite", [input, output], op_info)
+        return PointwiseOp("overwrite", [input], op_info)
 
     @staticmethod
     def reciprocal(x):
