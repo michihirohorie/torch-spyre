@@ -17,7 +17,12 @@ from contextlib import contextmanager
 
 import torch
 
-from torch._inductor.ir import ComputedBuffer, MutationLayoutSHOULDREMOVE, Reduction, Pointwise
+from torch._inductor.ir import (
+    ComputedBuffer,
+    MutationLayoutSHOULDREMOVE,
+    Reduction,
+    Pointwise,
+)
 from torch._inductor.virtualized import ops, V
 import torch._inductor.lowering as lowering
 
@@ -463,9 +468,11 @@ def lower_clamp(x, min=None, max=None):
     pw.realize()
     return pw
 
+
 lowering.register_op_dtype_propagation_rules(
     "overwrite", lowering.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT, None
 )
+
 
 @lowering.register_lowering(torch.ops.spyre.overwrite)
 def lower_overwrite(input, output, dim, offset):
@@ -480,8 +487,6 @@ def lower_overwrite(input, output, dim, offset):
         inner_fn=inner_fn,
         ranges=input.get_size(),
     )
-#    from dataclasses import replace
-#    inp_replaced = replace(inp, origin_node=input.get_origin_node())
 
     output.realize()
 
@@ -489,7 +494,6 @@ def lower_overwrite(input, output, dim, offset):
         name=None,
         layout=MutationLayoutSHOULDREMOVE(output),
         data=inp,
-#        data=inp_replaced,
     )
     buffer.name = V.graph.register_buffer(buffer)
     V.graph.register_operation(buffer)

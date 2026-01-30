@@ -247,7 +247,9 @@ def decompose_cat(
         output = tensors[0].new_empty(output_size)
         offset = 0
         for input in tensors:
-            output = torch.ops.spyre.overwrite(input=input, output=output, dim=dim, offset=offset)
+            output = torch.ops.spyre.overwrite(
+                input=input, output=output, dim=dim, offset=offset
+            )
             offset += input.size(dim)
         return output
     else:

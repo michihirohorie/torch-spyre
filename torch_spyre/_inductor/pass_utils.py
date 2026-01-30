@@ -36,7 +36,6 @@ def get_mem_deps(n: SchedulerNode) -> list[SchedNodeArg]:
         if isinstance(arg, MemoryDep):
             buf = V.graph.get_buffer(arg.name)
             layout = buf.get_layout()
-#            print(f"DEBUG:arg={arg}, buf={buf}, layout={layout}")
             if not isinstance(layout, FixedTiledLayout):
                 raise RuntimeError(f"{buf} does not have FixedTiledLayout")
             res.append(SchedNodeArg(arg, layout))
