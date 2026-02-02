@@ -22,7 +22,6 @@ from torch._inductor.ir import (
     IRNode,
     Reduction,
     ReductionHint,
-    Scatter,
     TensorBox,
 )
 from torch_spyre._C import SpyreTensorLayout

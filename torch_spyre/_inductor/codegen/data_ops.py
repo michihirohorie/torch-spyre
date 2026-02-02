@@ -1173,17 +1173,14 @@ def generate_clone(pointers, *, op, dimensions, inputs, outputs, **kwargs):
 
 def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
     output = outputs[0]["host_size"]
-
     items = kwargs["op_info"]["constants"]
     dim = items["dim"]
     offset = items["offset"]
-
     piece_sizes = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": 64}
     piece_valid_gaps = {
         "mb": [[piece_sizes["mb"], 0]],
         "out": [[piece_sizes["out"], 0]],
     }
-
     valid_gaps = {"mb": [[dimensions[0], 0]], "out": [[dimensions[-1], 0]]}
 
     if offset == 0:
@@ -1200,11 +1197,8 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
     piece_count = (
         dimensions[0] * dimensions[-1] // (4096 if dimensions[0] % 64 == 0 else 64)
     )
-
     hbm_offset = offset * output[1] * 2
-
     offsets = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": 64}
-
     loop_counts = {
         "mb": dimensions[0] // 64 if dimensions[0] % 64 == 0 else dimensions[0],
         "out": dimensions[-1] // 64,
@@ -1233,10 +1227,7 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     "out": dimensions[-1],
                                 },
                                 "dimToStickSize_": {"out": 64},
-                                "validGap_": {
-                                    "mb": [[dimensions[0], 0]],
-                                    "out": [[dimensions[-1], 0]],
-                                },
+                                "validGap_": valid_gaps,
                                 "PieceInfo": [
                                     {
                                         "key_": f"p{i}",

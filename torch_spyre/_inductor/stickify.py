@@ -92,6 +92,7 @@ def pointwise_layout(n: SchedulerNode, args: list[SchedNodeArg]) -> FixedTiledLa
 #    if not op is None:
 #        op = op.target
 #    else:
+#        # TODO: origin node cannot be set in the lowering of overwrite op
 #        op = spyreop.overwrite.default
     if len(args) == 1:
         x = args[0]
