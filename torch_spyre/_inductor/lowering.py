@@ -19,7 +19,6 @@ import torch
 
 from torch._inductor.ir import (
     ComputedBuffer,
-    MutationLayoutSHOULDREMOVE,
     Reduction,
     Pointwise,
 )
@@ -489,6 +488,14 @@ def lower_overwrite(input, output, dim, offset):
     )
 
     output.realize()
+
+    try:
+        from torch._inductor.ir import MutationLayoutSHOULDREMOVE
+    except ImportError:
+        raise RuntimeError(
+            "spyre::overwrite lowering: MutationLayoutSHOULDREMOVE is not available. "
+            "Upstream likely removed/renamed it."
+        )
 
     buffer = ComputedBuffer(
         name=None,
