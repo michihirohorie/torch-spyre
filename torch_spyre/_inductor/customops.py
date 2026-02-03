@@ -220,6 +220,8 @@ def _(
     return torch.empty(size, dtype=dtype, device="spyre")
 
 
+# Copy input into output starting at offset along dimension dim and
+# return the updated output.
 @torch.library.custom_op("spyre::overwrite", mutates_args=(), device_types="spyre")
 def overwrite(
     input: torch.Tensor, output: torch.Tensor, dim: int, offset: int
