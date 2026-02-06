@@ -361,3 +361,25 @@ def logical_not_decomp(input: torch.Tensor) -> torch.Tensor:
     else:
         zero = torch.zeros_like(input)
     return torch.eq(input, zero)
+
+
+@register_spyre_decomposition([torch.ops.aten.bitwise_not])
+def bitwise_not(input: torch.Tensor) -> torch.Tensor:
+    if input.dtype is torch.bool:
+        return torch.logical_not(input)
+    else:
+        neg_one = torch.ops.aten.full_like(input, -1)
+        return torch.ops.aten.bitwise_xor(input, neg_one)
+
+
+@register_spyre_decomposition([torch.ops.aten.bitwise_and])
+def bitwise_and(input1: torch.Tensor, input2: torch.Tensor) -> torch.Tensor:
+    if input1.dtype is torch.bool and input2.dtype is torch.bool:
+        return torch.ops.aten.logical_and(input1, input2)
+    else:
+        # Avoid recursive calls to torch.ops.aten.bitwise_and
+        return torch.ops.aten.bitwise_not(
+            torch.ops.aten.bitwise_or(
+                torch.ops.aten.bitwise_not(input1), torch.ops.aten.bitwise_not(input2)
+            )
+        )

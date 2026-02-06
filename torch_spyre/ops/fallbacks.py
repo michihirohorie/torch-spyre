@@ -255,3 +255,25 @@ def spyre__isin(
     return torch.isin(
         elements, test_elements, assume_unique=assume_unique, invert=invert, **kwargs
     )
+
+
+@register_fallback([aten.bitwise_xor.Tensor, aten.bitwise_xor.Tensor_out])
+def spyre__bitwise_xor(input1, input2, **kwargs):
+    """
+    Fallback for bitwise_xor on non-bool dtypes.
+
+    For bool tensors, logical_xor is used instead (handled in decomposition).
+    For integer tensors, this fallback performs the bitwise XOR operation on CPU.
+    """
+    return torch.bitwise_xor(input1, input2, **kwargs)
+
+
+@register_fallback([aten.bitwise_or.Tensor, aten.bitwise_or.Tensor_out])
+def spyre__bitwise_or(input1, input2, **kwargs):
+    """
+    Fallback for bitwise_or on non-bool dtypes.
+
+    For bool tensors, logical_or is used instead (handled in decomposition).
+    For integer tensors, this fallback performs the bitwise OR operation on CPU.
+    """
+    return torch.bitwise_or(input1, input2, **kwargs)

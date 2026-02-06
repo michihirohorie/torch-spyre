@@ -182,6 +182,10 @@ class SpyreOpFuncs:
         return PointwiseOp("log", [x])
 
     @staticmethod
+    def logical_and(x, y):
+        return PointwiseOp("mul", [x, y])
+
+    @staticmethod
     def mul(a, b):
         return PointwiseOp("mul", [a, b])
 

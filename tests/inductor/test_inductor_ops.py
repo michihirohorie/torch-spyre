@@ -499,6 +499,68 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
             },
         },
         (
+            "test_bitwise_not",
+            "test_fallback_unary_op_cpu",
+        ): {
+            "ops_dict": {
+                "bitwise_not": torch.bitwise_not,
+            },
+            "param_sets": {
+                "bool_1d": (torch.randint(0, 2, (256,), dtype=torch.bool),),
+                "bool_2d": (torch.randint(0, 2, (128, 256), dtype=torch.bool),),
+                "bool_3d": (torch.randint(0, 2, (8, 32, 128), dtype=torch.bool),),
+                "bool_4d": (torch.randint(0, 2, (2, 8, 32, 64), dtype=torch.bool),),
+                "int8_1d": (torch.randint(-128, 127, (256,), dtype=torch.int8),),
+                "int8_2d": (torch.randint(-128, 127, (128, 256), dtype=torch.int8),),
+                "int8_3d": (torch.randint(-128, 127, (8, 32, 128), dtype=torch.int8),),
+                "int8_4d": (
+                    torch.randint(-128, 127, (2, 8, 32, 64), dtype=torch.int8),
+                ),
+            },
+        },
+        (
+            "test_bitwise_and",
+            "test_fallback_binary_op_cpu",
+        ): {
+            "ops_dict": {
+                "bitwise_and": torch.bitwise_and,
+            },
+            "param_sets": {
+                "bool_1d": (
+                    torch.randint(0, 2, (256,), dtype=torch.bool),
+                    torch.randint(0, 2, (256,), dtype=torch.bool),
+                ),
+                "bool_2d": (
+                    torch.randint(0, 2, (128, 256), dtype=torch.bool),
+                    torch.randint(0, 2, (128, 256), dtype=torch.bool),
+                ),
+                "bool_3d": (
+                    torch.randint(0, 2, (8, 32, 128), dtype=torch.bool),
+                    torch.randint(0, 2, (8, 32, 128), dtype=torch.bool),
+                ),
+                "bool_4d": (
+                    torch.randint(0, 2, (2, 8, 32, 64), dtype=torch.bool),
+                    torch.randint(0, 2, (2, 8, 32, 64), dtype=torch.bool),
+                ),
+                "int8_1d": (
+                    torch.randint(-128, 127, (256,), dtype=torch.int8),
+                    torch.randint(-128, 127, (256,), dtype=torch.int8),
+                ),
+                "int8_2d": (
+                    torch.randint(-128, 127, (128, 256), dtype=torch.int8),
+                    torch.randint(-128, 127, (128, 256), dtype=torch.int8),
+                ),
+                "int8_3d": (
+                    torch.randint(-128, 127, (8, 32, 128), dtype=torch.int8),
+                    torch.randint(-128, 127, (8, 32, 128), dtype=torch.int8),
+                ),
+                "int8_4d": (
+                    torch.randint(-128, 127, (2, 8, 32, 64), dtype=torch.int8),
+                    torch.randint(-128, 127, (2, 8, 32, 64), dtype=torch.int8),
+                ),
+            },
+        },
+        (
             "test_pointwise_binary_op_fp32",
             "test_binary_op",
         ): {
@@ -984,6 +1046,10 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
     @pytest.mark.filterwarnings("ignore::torch_spyre.ops.fallbacks.FallbackWarning")
     def test_fallback_unary_op_cpu(self, op, x):
         compare_with_cpu(op, x)
+
+    @pytest.mark.filterwarnings("ignore::torch_spyre.ops.fallbacks.FallbackWarning")
+    def test_fallback_binary_op_cpu(self, op, x, y):
+        compare_with_cpu(op, x, y)
 
     def test_binary_op(self, op, a, b):
         if op == torch.div:
