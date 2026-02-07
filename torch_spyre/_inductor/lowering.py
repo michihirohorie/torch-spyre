@@ -247,38 +247,6 @@ def lower_layernormscale(x, eps):
     return pw
 
 
-@register_spyre_lowering(torch.ops.aten.mean.dim)
-def lower_mean(x, axis=None, keepdim=False, *, dtype=None):
-    kwargs = lowering._make_reduction_inner(
-        x, axis=axis, keepdims=keepdim, dtype=x.dtype, override_return_dtype=None
-    )
-    size = x.get_size()
-    denom = torch._inductor.utils.sympy_product(size[i] for i in axis)
-    scaling_factor = 1.0 / denom
-    op_info = {"constants": {"scaling_factor": scaling_factor}}
-    result = SpyreReduction.create(
-        reduction_type="mean", input_node=x, op_info=op_info, **kwargs
-    )
-    result.realize()
-    return result
-
-
-@register_spyre_lowering(torch.ops.spyre.gelu)
-def lower_gelu(x, approximate="none"):
-    pw = Pointwise.create(
-        device=x.get_device(),
-        dtype=x.get_dtype(),
-        inner_fn=lambda index: lowering.ops_wrapper(torch.ops.spyre.gelu.__name__)(
-            x.make_loader()(index)
-        ),
-        ranges=x.get_size(),
-        origin_node=x.get_origin_node(),
-        traceback=x.get_traceback(),
-    )
-    pw.realize()
-    return pw
-
-
 @register_spyre_lowering(torch.ops.spyre.softplus)
 def lower_softplus(x, beta=1.0, threshold=20.0):
     fn = lowering.ops_wrapper(torch.ops.spyre.softplus.__name__)

@@ -82,21 +82,6 @@ def spyre_layer_norm(
 
 torch.nn.functional.layer_norm = spyre_layer_norm
 
-orig_gelu = torch.nn.functional.gelu
-
-
-def spyre_gelu(
-    input: torch.Tensor,
-    approximate: str = "none",
-) -> torch.Tensor:
-    if input.device.type == "spyre":
-        return torch.ops.spyre.gelu(input, approximate)
-    else:
-        return orig_gelu(input, approximate=approximate)
-
-
-torch.nn.functional.gelu = spyre_gelu
-
 
 orig_softplus = torch.nn.functional.softplus
 

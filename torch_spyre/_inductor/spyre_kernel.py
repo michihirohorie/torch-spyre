@@ -128,10 +128,6 @@ class SpyreOpFuncs:
         return PointwiseOp("greaterequal", [a, b])
 
     @staticmethod
-    def gelu(x):
-        return PointwiseOp("gelu", [x])
-
-    @staticmethod
     def layernormnorm(*args):
         return PointwiseOp("layernormnorm", list(args))
 
@@ -147,10 +143,6 @@ class SpyreOpFuncs:
     @staticmethod
     def log(x):
         return PointwiseOp("log", [x])
-
-    @staticmethod
-    def mul(a, b):
-        return PointwiseOp("mul", [a, b])
 
     @staticmethod
     def ne(a, b):

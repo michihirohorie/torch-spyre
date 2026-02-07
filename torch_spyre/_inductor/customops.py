@@ -142,19 +142,6 @@ def _(
     return x.new_empty(x.size())
 
 
-@torch.library.custom_op("spyre::gelu", mutates_args=(), device_types="spyre")
-def gelu(
-    input: torch.Tensor,
-    approximate: str = "none",
-) -> torch.Tensor:
-    pass
-
-
-@gelu.register_fake
-def _(input: torch.Tensor, approximate: str = "none"):
-    return input.new_empty(input.size())
-
-
 @torch.library.custom_op("spyre::clamp", mutates_args=(), device_types="spyre")
 def clamp(
     input: torch.Tensor,
