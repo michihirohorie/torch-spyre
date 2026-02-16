@@ -1171,62 +1171,374 @@ def generate_clone(pointers, *, op, dimensions, inputs, outputs, **kwargs):
     }
 
 
-def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
+def generate_copy(pointers, *, op, dimensions, inputs, outputs, **kwargs):
+    op_info = kwargs["op_info"]
+    dim = 0
+    offset = 0
+    if op_info.get("constants") is not None:
+        item = op_info["constants"]
+        if item.get("dim") is not None:
+            dim = item["dim"]
+        if item.get("offset") is not None:
+            offset = item["offset"]
+    input = inputs[0]["host_size"]
     output = outputs[0]["host_size"]
-    items = kwargs["op_info"]["constants"]
-    dim = items["dim"]
-    offset = items["offset"]
-    piece_sizes = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": 64}
-    piece_valid_gaps = {
-        "mb": [[piece_sizes["mb"], 0]],
-        "out": [[piece_sizes["out"], 0]],
-    }
-    valid_gaps = {"mb": [[dimensions[0], 0]], "out": [[dimensions[-1], 0]]}
+    needs_offset_copy = input != output
 
-    if offset == 0:
-        valid_gaps_out = {
-            "mb": [[dimensions[0], output[dim] - dimensions[0]]],
-            "out": [[dimensions[-1], 0]],
+    ndims = len(dimensions)
+    # Get data type information from inputs
+    input_dtype = inputs[0]["device_layout"].device_dtype
+    word_length = num_bytes(input_dtype)
+    data_format = input_dtype.name
+    elems_per_stick = input_dtype.elems_per_stick()
+    if ndims == 1:
+        layout = ["out"]
+        dim_map = {"out": dimensions[0]}
+        dim_map_out = dim_map
+        offsets = {"out": 1}
+        loop_counts = {"out": dimensions[0] // elems_per_stick}
+        piece_valid_gaps = {"out": [[elems_per_stick, 0]]}
+        piece_sizes = {"out": elems_per_stick}
+        valid_gaps = {"out": [[dimensions[0], 0]]}
+        piece_count = dimensions[0] // elems_per_stick
+
+        # Handle offset for output valid gaps
+        valid_gaps_out = {"out": [[dimensions[0], 0]]}
+        hbm_offset = 0
+        if needs_offset_copy and dim == 0:
+            dim_map_out = {"out": output[0]}
+            valid_gaps_out = {
+                "out": [
+                    *([[0, offset]] if offset != 0 else []),
+                    [
+                        dimensions[0],
+                        output[0] - dimensions[0] - offset,
+                    ],
+                ],
+            }
+            hbm_offset = offset * word_length
+
+    elif ndims == 2:
+        layout = ["mb", "out"]
+        dim_map = {"mb": dimensions[0], "out": dimensions[-1]}
+        dim_map_out = dim_map
+        offsets = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": dimensions[0],
         }
-    else:
-        valid_gaps_out = {
-            "mb": [[0, offset], [dimensions[0], output[dim] - dimensions[0] - offset]],
+        loop_counts = {
+            "mb": dimensions[0] // elems_per_stick
+            if dimensions[0] % elems_per_stick == 0
+            else dimensions[0],
+            "out": dimensions[-1] // elems_per_stick,
+        }
+        piece_sizes = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": elems_per_stick,
+        }
+        piece_valid_gaps = {
+            "mb": [[piece_sizes["mb"], 0]],
+            "out": [[piece_sizes["out"], 0]],
+        }
+        valid_gaps = {"mb": [[dimensions[0], 0]], "out": [[dimensions[-1], 0]]}
+
+        # Handle offset for output valid gaps
+        valid_gaps_out = {"mb": [[dimensions[0], 0]], "out": [[dimensions[-1], 0]]}
+        hbm_offset = 0
+        if needs_offset_copy:
+            dim_map_out = {"mb": output[0], "out": output[-1]}
+            if dim == 0:  # mb dimension
+                valid_gaps_out = {
+                    "mb": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[0],
+                            output[0] - dimensions[0] - offset,
+                        ],
+                    ],
+                    "out": [[dimensions[-1], 0]],
+                }
+                hbm_offset = offset * dimensions[-1] * word_length
+            elif dim == 1:  # out dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[-1],
+                            output[-1] - dimensions[-1] - offset,
+                        ],
+                    ],
+                }
+                hbm_offset = offset * dimensions[0] * word_length
+
+        piece_count = (
+            dimensions[0]
+            * dimensions[-1]
+            // (
+                elems_per_stick * elems_per_stick
+                if dimensions[0] % elems_per_stick == 0
+                else elems_per_stick
+            )
+        )
+
+    elif ndims == 3:
+        layout = ["mb", "out", "x"]
+        dim_map = {"mb": dimensions[0], "out": dimensions[-1], "x": dimensions[1]}
+        dim_map_out = dim_map
+        offsets = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": dimensions[0],
+            "x": dimensions[-1] * dimensions[0] // elems_per_stick,
+        }
+        loop_counts = {
+            "mb": dimensions[0] // elems_per_stick
+            if dimensions[0] % elems_per_stick == 0
+            else dimensions[0],
+            "out": dimensions[-1] // elems_per_stick,
+            "x": dimensions[1],
+        }
+        piece_sizes = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": elems_per_stick,
+            "x": 1,
+        }
+        piece_valid_gaps = {
+            "mb": [[piece_sizes["mb"], 0]],
+            "out": [[piece_sizes["out"], 0]],
+            "x": [[piece_sizes["x"], 0]],
+        }
+        valid_gaps = {
+            "mb": [[dimensions[0], 0]],
             "out": [[dimensions[-1], 0]],
+            "x": [[dimensions[1], 0]],
         }
 
-    piece_count = (
-        dimensions[0] * dimensions[-1] // (4096 if dimensions[0] % 64 == 0 else 64)
-    )
-    hbm_offset = offset * output[1] * 2
-    offsets = {"mb": 64 if dimensions[0] % 64 == 0 else 1, "out": 64}
-    loop_counts = {
-        "mb": dimensions[0] // 64 if dimensions[0] % 64 == 0 else dimensions[0],
-        "out": dimensions[-1] // 64,
-    }
+        # Handle offset for output valid gaps
+        valid_gaps_out = {
+            "mb": [[dimensions[0], 0]],
+            "out": [[dimensions[-1], 0]],
+            "x": [[dimensions[1], 0]],
+        }
+        hbm_offset = 0
+        if needs_offset_copy:
+            dim_map_out = {"mb": output[0], "out": output[-1], "x": output[1]}
+            if dim == 0:  # mb dimension
+                valid_gaps_out = {
+                    "mb": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[0],
+                            output[0] - dimensions[0] - offset,
+                        ],
+                    ],
+                    "out": [[dimensions[-1], 0]],
+                    "x": [[dimensions[1], 0]],
+                }
+                hbm_offset = offset * dimensions[1] * dimensions[-1] * word_length
+            elif dim == 1:  # x dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [[dimensions[-1], 0]],
+                    "x": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[1],
+                            output[1] - dimensions[1] - offset,
+                        ],
+                    ],
+                }
+                hbm_offset = offset * dimensions[0] * dimensions[-1] * word_length
+            elif dim == 2:  # out dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[-1],
+                            output[-1] - dimensions[-1] - offset,
+                        ],
+                    ],
+                    "x": [[dimensions[1], 0]],
+                }
+                hbm_offset = offset * dimensions[0] * dimensions[1] * word_length
+
+        piece_count = (
+            dimensions[0]
+            * dimensions[1]
+            * dimensions[-1]
+            // (
+                elems_per_stick * elems_per_stick
+                if dimensions[0] % elems_per_stick == 0
+                else elems_per_stick
+            )
+        )
+    else:  # 4d
+        layout = ["mb", "out", "x", "y"]
+        dim_map = {
+            "mb": dimensions[0],
+            "out": dimensions[-1],
+            "x": dimensions[1],
+            "y": dimensions[2],
+        }
+        dim_map_out = dim_map
+        offsets = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": dimensions[0],
+            "x": dimensions[-1] * dimensions[0] // elems_per_stick,
+            "y": dimensions[-1] * dimensions[0] * dimensions[1] // elems_per_stick,
+        }
+        loop_counts = {
+            "mb": dimensions[0] // elems_per_stick
+            if dimensions[0] % elems_per_stick == 0
+            else dimensions[0],
+            "out": dimensions[-1] // elems_per_stick,
+            "x": dimensions[1],
+            "y": dimensions[2],
+        }
+        piece_sizes = {
+            "mb": elems_per_stick if dimensions[0] % elems_per_stick == 0 else 1,
+            "out": elems_per_stick,
+            "x": 1,
+            "y": 1,
+        }
+        piece_valid_gaps = {
+            "mb": [[piece_sizes["mb"], 0]],
+            "out": [[piece_sizes["out"], 0]],
+            "x": [[piece_sizes["x"], 0]],
+            "y": [[piece_sizes["y"], 0]],
+        }
+        valid_gaps = {
+            "mb": [[dimensions[0], 0]],
+            "out": [[dimensions[-1], 0]],
+            "x": [[dimensions[1], 0]],
+            "y": [[dimensions[2], 0]],
+        }
+
+        # Handle offset for output valid gaps
+        valid_gaps_out = {
+            "mb": [[dimensions[0], 0]],
+            "out": [[dimensions[-1], 0]],
+            "x": [[dimensions[1], 0]],
+            "y": [[dimensions[2], 0]],
+        }
+        hbm_offset = 0
+        if needs_offset_copy:
+            dim_map_out = {
+                "mb": output[0],
+                "out": output[-1],
+                "x": output[1],
+                "y": output[2],
+            }
+            if dim == 0:  # mb dimension
+                valid_gaps_out = {
+                    "mb": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[0],
+                            output[0] - dimensions[0] - offset,
+                        ],
+                    ],
+                    "out": [[dimensions[-1], 0]],
+                    "x": [[dimensions[1], 0]],
+                    "y": [[dimensions[2], 0]],
+                }
+                hbm_offset = (
+                    offset
+                    * dimensions[1]
+                    * dimensions[2]
+                    * dimensions[-1]
+                    * word_length
+                )
+            elif dim == 1:  # x dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [[dimensions[-1], 0]],
+                    "x": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[1],
+                            output[1] - dimensions[1] - offset,
+                        ],
+                    ],
+                    "y": [[dimensions[2], 0]],
+                }
+                hbm_offset = (
+                    offset
+                    * dimensions[0]
+                    * dimensions[2]
+                    * dimensions[-1]
+                    * word_length
+                )
+            elif dim == 2:  # y dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [[dimensions[-1], 0]],
+                    "x": [[dimensions[1], 0]],
+                    "y": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[2],
+                            output[2] - dimensions[2] - offset,
+                        ],
+                    ],
+                }
+                hbm_offset = (
+                    offset
+                    * dimensions[0]
+                    * dimensions[1]
+                    * dimensions[-1]
+                    * word_length
+                )
+            elif dim == 3:  # out dimension
+                valid_gaps_out = {
+                    "mb": [[dimensions[0], 0]],
+                    "out": [
+                        *([[0, offset]] if offset != 0 else []),
+                        [
+                            dimensions[-1],
+                            output[-1] - dimensions[-1] - offset,
+                        ],
+                    ],
+                    "x": [[dimensions[1], 0]],
+                    "y": [[dimensions[2], 0]],
+                }
+                hbm_offset = (
+                    offset * dimensions[0] * dimensions[1] * dimensions[2] * word_length
+                )
+
+        piece_count = (
+            dimensions[0]
+            * dimensions[1]
+            * dimensions[-1]
+            * dimensions[2]
+            // (
+                elems_per_stick * elems_per_stick
+                if dimensions[0] % elems_per_stick == 0
+                else elems_per_stick
+            )
+        )
 
     return {
-        "overwrite": {
+        f"{op}": {
             "numCoresUsed_": 1,
             "dscs_": [],
             "coreIdToDscSchedule": {"0": [[0, -1, 0, 0]]},
             "datadscs_": [
                 {
-                    "overwrite": {
+                    f"op": {
                         "coreIdsUsed_": [0],
-                        "dimPool_": ["mb", "out"],
-                        "primaryDs_": [{"name_": "pds0", "dimNames": ["mb", "out"]}],
+                        "dimPool_": layout,
+                        "primaryDs_": [{"name_": "pds0", "dimNames": layout}],
                         "labeledDs_": [
                             {
                                 "pdsName_": "pds0",
-                                "wordLength": 2,
-                                "dataformat": "SEN169_FP16",
-                                "layoutDimOrder_": ["mb", "out"],
+                                "wordLength": word_length,
+                                "dataformat": data_format,
+                                "layoutDimOrder_": layout,
                                 "stickDimOrder_": ["out"],
-                                "dimToLayoutSize_": {
-                                    "mb": dimensions[0],
-                                    "out": dimensions[-1],
-                                },
-                                "dimToStickSize_": {"out": 64},
+                                "dimToLayoutSize_": dim_map,
+                                "dimToStickSize_": {"out": elems_per_stick},
                                 "validGap_": valid_gaps,
                                 "PieceInfo": [
                                     {
@@ -1254,12 +1566,12 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                             },
                             {
                                 "pdsName_": "pds0",
-                                "wordLength": 2,
-                                "dataformat": "SEN169_FP16",
-                                "layoutDimOrder_": ["mb", "out"],
+                                "wordLength": word_length,
+                                "dataformat": data_format,
+                                "layoutDimOrder_": layout,
                                 "stickDimOrder_": ["out"],
-                                "dimToLayoutSize_": {"mb": output[0], "out": output[1]},
-                                "dimToStickSize_": {"out": 64},
+                                "dimToLayoutSize_": dim_map_out,
+                                "dimToStickSize_": {"out": elems_per_stick},
                                 "validGap_": valid_gaps_out,
                                 "PieceInfo": [
                                     {
@@ -1287,7 +1599,10 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     }
                                     for i in range(piece_count)
                                 ],
-                                "hbmStartAddress_": pointers[outputs[0]["name"]] // 128,
+                                "hbmStartAddress_": (
+                                    pointers[outputs[0]["name"]] + hbm_offset
+                                )
+                                // 128,
                             },
                         ],
                         "op": {
@@ -1302,10 +1617,7 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                             "type_": "stride",
                                             "offset_": offsets,
                                         },
-                                        "l3su": {
-                                            "type_": "stride",
-                                            "offset_": offsets,
-                                        },
+                                        "l3su": {"type_": "stride", "offset_": offsets},
                                     },
                                     "inpPieceOrder": [
                                         f"p{i}" for i in range(piece_count)
@@ -1324,3 +1636,9 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
             ],
         }
     }
+
+
+def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
+    return generate_copy(
+        pointers, op=op, dimensions=dimensions, inputs=inputs, outputs=outputs, **kwargs
+    )
