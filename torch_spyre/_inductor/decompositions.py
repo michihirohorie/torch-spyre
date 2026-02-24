@@ -41,6 +41,12 @@ spyre_decompositions_to_exclude = [
     torch.ops.aten.new_ones,
 ]
 
+# List of decompositions to be re-defined in this file
+decomps_to_exclude = [torch.ops.aten.cat.default]
+torch._decomp.remove_decompositions(
+    torch._inductor.decomposition.decompositions, decomps_to_exclude
+)
+
 
 def register_spyre_decomposition(
     ops: Union[torch._ops.OperatorBase, list],
