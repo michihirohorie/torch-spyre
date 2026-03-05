@@ -942,7 +942,80 @@ def generate_transpose_4d_stick(
     }
 
 
-def generate_identity(pointers, *, op, dimensions, inputs, outputs, **kwargs):
+def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
+    op_info = kwargs["op_info"]
+    dim = 0
+    offset = 0
+    if op_info.get("constants") is not None:
+        item = op_info["constants"]
+        if item.get("dim") is not None:
+            dim = item["dim"]
+        if item.get("offset") is not None:
+            offset = item["offset"]
+    input_size = inputs[0]["device_layout"].device_size
+    output_size = outputs[0]["device_layout"].device_size
+    needs_offset_copy = input_size != output_size
+
+    input_host_size = get_device_size(dim, inputs[0])
+    output_host_size = get_device_size(dim, outputs[0])
+    gap = output_host_size - input_host_size
+
+    ndim = len(dimensions)
+    dim_labels = INPUT_DIM_LABELS[: ndim - 1] + OUTPUT_DIM_LABELS[:1]
+    dim_name = dim_labels[dim]
+
+    input_dl = inputs[0]["device_layout"]
+    device_sizes = list(input_dl.device_size)
+    scale = inputs[0]["it_dim_map"][dim]
+    device_dim_idx = input_dl.dim_map.index(scale)
+
+    # Use dim_name for backGapCore - it's the host dimension label which is what we need
+    device_dim_label = dim_name
+
+    # Check if this is the stick dimension
+    stick_dim = input_dl.host_stick_dim()
+    is_stick_dim = scale == stick_dim
+
+    stick_indices = [i for i, x in enumerate(input_dl.dim_map) if x == stick_dim]
+
+    stride = offset
+    if is_stick_dim:
+        for i in range(device_dim_idx + 1, len(device_sizes)):
+            if i not in stick_indices:
+                stride *= device_sizes[i]
+    else:
+        for i in range(device_dim_idx + 1, len(device_sizes)):
+            stride *= device_sizes[i]
+
+    return generate_identity(
+        pointers,
+        op=op,
+        dimensions=dimensions,
+        inputs=inputs,
+        outputs=outputs,
+        offset=offset if needs_offset_copy else None,
+        gap=gap,
+        dim=dim,
+        stride=stride,
+        device_dim_label=device_dim_label,
+        **kwargs,
+    )
+
+
+def generate_identity(
+    pointers,
+    *,
+    op,
+    dimensions,
+    inputs,
+    outputs,
+    offset=None,
+    gap=None,
+    dim=None,
+    stride=None,
+    device_dim_label=None,
+    **kwargs,
+):
     tensors = inputs + outputs
     input_dtype = inputs[0]["device_layout"].device_dtype
     data_format = input_dtype
@@ -952,7 +1025,7 @@ def generate_identity(pointers, *, op, dimensions, inputs, outputs, **kwargs):
     cores = 1
 
     # Get operation dim map from the tensor that represents the operation space
-    op_dims_tensor = outputs[0]
+    op_dims_tensor = inputs[0]
     dl = op_dims_tensor["device_layout"]
     dim_map = dl.dim_map[::-1][1:]
     dim_labels = INPUT_DIM_LABELS[: ndim - 1] + OUTPUT_DIM_LABELS[:1]
@@ -1068,6 +1141,22 @@ def generate_identity(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                     "data_": {
                                         f"[{c}, 0, 0]": str(
                                             pointers[tensor["name"]]
+                                            # Add offset for output tensors in cat operations
+                                            + (
+                                                (
+                                                    stride
+                                                    * num_bytes(
+                                                        tensor[
+                                                            "device_layout"
+                                                        ].device_dtype
+                                                    )
+                                                    // cores
+                                                )
+                                                if tensor in outputs
+                                                and offset is not None
+                                                and offset > 0
+                                                else 0
+                                            )
                                             + c
                                             # calculate the prod of dim sizes
                                             # less significant than chosen split dim i.e. the stick
@@ -1084,6 +1173,17 @@ def generate_identity(pointers, *, op, dimensions, inputs, outputs, **kwargs):
                                         for c in range(cores)
                                     },
                                 },
+                                **(
+                                    {
+                                        "backGapCore_": {
+                                            device_dim_label: {
+                                                "-1": str(gap)  # HBM is -1
+                                            },
+                                        }
+                                    }
+                                    if tensor in outputs and offset is not None
+                                    else {}
+                                ),
                                 "coordinates_": {
                                     "coordInfo": {
                                         di.label: gen_coord_info_value(
