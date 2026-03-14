@@ -165,6 +165,10 @@ class SpyreOpFuncs:
         return PointwiseOp("gelufwd", [x])
 
     @staticmethod
+    def index_add(x):
+        return PointwiseOp("index_add", [x])
+
+    @staticmethod
     def layernormnorm(*args):
         return PointwiseOp("layernormnorm", list(args))
 

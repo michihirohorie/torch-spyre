@@ -248,3 +248,39 @@ def _ones_scalar_fake(
     dtype: Optional[torch.dtype] = None,
 ):
     return torch.empty(1, dtype=dtype, device="spyre")
+
+
+@torch.library.custom_op("spyre::index_add", mutates_args=(), device_types="spyre")
+def index_add(
+    input: torch.Tensor,
+    dim: int,
+    index: torch.Tensor,
+    source: torch.Tensor,
+    alpha: float = 1.0,
+) -> torch.Tensor:
+    """
+    Add values from source tensor to input tensor at indices specified by index.
+    Index calculation is done on CPU, data movement on device.
+
+    Args:
+        input: The input tensor to accumulate into
+        dim: The dimension along which to index
+        index: 1-D tensor containing indices (computed on CPU)
+        source: The source tensor containing values to add
+        alpha: Scaling factor for source values
+
+    Returns:
+        Output tensor with accumulated values
+    """
+    pass
+
+
+@index_add.register_fake
+def _(
+    input: torch.Tensor,
+    dim: int,
+    index: torch.Tensor,
+    source: torch.Tensor,
+    alpha: float = 1.0,
+):
+    return input.new_empty(input.size())

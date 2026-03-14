@@ -880,6 +880,55 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
                 "4d": (cached_randn((4, 17, 256, 128), dtype=torch.float16),),
             },
         },
+        (
+            "test_index_add",
+            "test_index_add_op",
+        ): {
+            "param_sets": {
+                "2d_dim0": (
+                    cached_randn((10, 5)),  # input
+                    0,  # dim
+                    torch.tensor([0, 2, 5, 8], dtype=torch.long),  # index
+                    cached_randn((4, 5)),  # source
+                    1.0,  # alpha
+                ),
+                "2d_dim1": (
+                    cached_randn((5, 10)),
+                    1,
+                    torch.tensor([1, 3, 7], dtype=torch.long),
+                    cached_randn((5, 3)),
+                    1.0,
+                ),
+                "3d_dim0": (
+                    cached_randn((8, 4, 6)),
+                    0,
+                    torch.tensor([0, 3, 6], dtype=torch.long),
+                    cached_randn((3, 4, 6)),
+                    1.0,
+                ),
+                "3d_dim1": (
+                    cached_randn((4, 8, 6)),
+                    1,
+                    torch.tensor([1, 4, 7], dtype=torch.long),
+                    cached_randn((4, 3, 6)),
+                    1.0,
+                ),
+                "3d_dim2": (
+                    cached_randn((4, 6, 10)),
+                    2,
+                    torch.tensor([0, 5, 9], dtype=torch.long),
+                    cached_randn((4, 6, 3)),
+                    1.0,
+                ),
+                "with_alpha": (
+                    cached_randn((10, 8)),
+                    0,
+                    torch.tensor([2, 5, 8], dtype=torch.long),
+                    cached_randn((3, 8)),
+                    2.5,  # alpha scaling
+                ),
+            },
+        },
     }
 
     def __init__(self, *args, **kwargs):
@@ -1096,6 +1145,14 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
         output = compiled(64.0, device="spyre")
 
         _ = output.cpu()
+
+    def test_index_add_op(self, input_tensor, dim, index, source, alpha):
+        """Test index_add operation with CPU-based index calculation."""
+
+        def fn(input_tensor, dim, index, source, alpha):
+            return torch.ops.spyre.index_add(input_tensor, dim, index, source, alpha)
+
+        compare_with_cpu(fn, input_tensor, dim, index, source, alpha)
 
 
 if __name__ == "__main__":

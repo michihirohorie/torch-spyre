@@ -28,6 +28,7 @@ from .data_ops import (
     generate_transpose_3d_stick,
     generate_transpose_4d_stick,
     generate_identity,
+    generate_index_add,
 )
 
 logger = get_inductor_logger("codegen.superdsc")
@@ -155,6 +156,15 @@ def generate_sdsc(pointers, *, op, dimensions, inputs, outputs, reduction, **kwa
             )
     if op == CLONE_OP:
         return generate_identity(
+            pointers,
+            op=op,
+            dimensions=dimensions,
+            inputs=inputs,
+            outputs=outputs,
+            **kwargs,
+        )
+    if op == "index_add":
+        return generate_index_add(
             pointers,
             op=op,
             dimensions=dimensions,

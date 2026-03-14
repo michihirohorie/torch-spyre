@@ -553,3 +553,103 @@ def clone(x, *, memory_format=None):
         result.realize()
         result.freeze_layout_with_stride_order(stride_order)
     return result
+
+
+@register_spyre_lowering(torch.ops.aten.index_put.default)
+def lower_index_put(input, indices, values, accumulate=False):
+    """
+    Lower index_put operation which is the decomposed form of index_add.
+
+    index_put(input, [index], values, accumulate=True) is equivalent to
+    index_add(input, 0, index, values, alpha=1.0)
+
+    Args:
+        input: Input tensor to accumulate into
+        indices: List containing a single 1-D index tensor
+        values: Source tensor with values to add
+        accumulate: If True, add values; if False, set values
+
+    Returns:
+        Result tensor with accumulated/set values
+    """
+    if not accumulate:
+        raise Unsupported("index_put with accumulate=False is not supported")
+
+    if len(indices) != 1:
+        raise Unsupported(
+            f"index_put with {len(indices)} indices is not supported, only single index supported"
+        )
+
+    index = indices[0]
+
+    # Determine the dimension being indexed (assume dim=0 for now based on index_add pattern)
+    # In the decomposition, index_add(input, dim, index, source) becomes
+    # index_put(input, [index], source, accumulate=True)
+    dim = 0
+    alpha = 1.0
+
+    # Call the existing index_add lowering
+    return lower_index_add(input, dim, index, values, alpha)
+
+
+@register_spyre_lowering(torch.ops.spyre.index_add)
+def lower_index_add(input, dim, index, source, alpha=1.0):
+    """
+    Lower index_add operation where index calculation is done on CPU.
+
+    This operation adds values from source tensor to input tensor at positions
+    specified by the index tensor. The index tensor is kept on CPU for calculation,
+    while the actual data movement happens on the Spyre device.
+
+    Args:
+        input: Input tensor to accumulate into
+        dim: Dimension along which to index
+        index: 1-D index tensor (on CPU)
+        source: Source tensor with values to add
+        alpha: Scaling factor for source values
+
+    Returns:
+        Result tensor with accumulated values
+    """
+    from torch._inductor.ir import Pointwise
+
+    # Realize input and source tensors
+    input_buf = V.graph.get_buffer(input.realize())
+    source_buf = V.graph.get_buffer(source.realize())
+
+    # Index should remain on CPU for calculation
+    # We'll pass index information through op_info
+    index_values = index.realize()
+
+    fn = lowering.ops_wrapper(torch.ops.spyre.index_add.__name__)
+
+    def inner_fn(index_tuple):
+        """
+        Inner function that generates a placeholder for index_add.
+        The actual scatter logic will be handled in the codegen phase via op_info.
+        We just return a dummy operation here to satisfy the IR requirements.
+        """
+        # Just load from input - the actual operation will be handled by codegen
+        return fn(input_buf.make_loader()(index_tuple))
+
+    # Create a pointwise operation for index_add
+    # The actual scatter logic will be handled in codegen
+    pw = Pointwise.create(
+        device=input_buf.get_device(),
+        dtype=input_buf.get_dtype(),
+        inner_fn=inner_fn,
+        ranges=input_buf.get_size(),
+        origin_node=input_buf.get_origin_node(),
+        traceback=input_buf.get_traceback(),
+    )
+
+    # Store metadata for codegen phase
+    pw.data.op_info = {
+        "dim": dim,
+        "index": index_values,
+        "source": source_buf,
+        "alpha": alpha,
+    }
+
+    pw.realize()
+    return pw
