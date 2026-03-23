@@ -952,32 +952,22 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
             dim = item["dim"]
         if item.get("offset") is not None:
             offset = item["offset"]
-    input_size = inputs[0]["device_layout"].device_size
-    output_size = outputs[0]["device_layout"].device_size
-    needs_offset_copy = input_size != output_size
-
     input_host_size = get_device_size(dim, inputs[0])
     output_host_size = get_device_size(dim, outputs[0])
     gap = output_host_size - input_host_size
 
     ndim = len(dimensions)
     dim_labels = INPUT_DIM_LABELS[: ndim - 1] + OUTPUT_DIM_LABELS[:1]
-    dim_name = dim_labels[dim]
+    gap_dim_label = dim_labels[dim]
 
     input_dl = inputs[0]["device_layout"]
     device_sizes = list(input_dl.device_size)
     scale = inputs[0]["it_dim_map"][dim]
     device_dim_idx = input_dl.dim_map.index(scale)
 
-    # Use dim_name for backGapCore - it's the host dimension label which is what we need
-    device_dim_label = dim_name
-
-    # Check if this is the stick dimension
     stick_dim = input_dl.host_stick_dim()
     is_stick_dim = scale == stick_dim
-
     stick_indices = [i for i, x in enumerate(input_dl.dim_map) if x == stick_dim]
-
     stride = offset
     if is_stick_dim:
         for i in range(device_dim_idx + 1, len(device_sizes)):
@@ -993,11 +983,9 @@ def generate_overwrite(pointers, *, op, dimensions, inputs, outputs, **kwargs):
         dimensions=dimensions,
         inputs=inputs,
         outputs=outputs,
-        offset=offset if needs_offset_copy else None,
-        gap=gap,
-        dim=dim,
         stride=stride,
-        device_dim_label=device_dim_label,
+        gap=gap,
+        gap_dim_label=gap_dim_label,
         **kwargs,
     )
 
@@ -1009,11 +997,9 @@ def generate_identity(
     dimensions,
     inputs,
     outputs,
-    offset=None,
-    gap=None,
-    dim=None,
     stride=None,
-    device_dim_label=None,
+    gap=None,
+    gap_dim_label=None,
     **kwargs,
 ):
     tensors = inputs + outputs
@@ -1141,7 +1127,6 @@ def generate_identity(
                                     "data_": {
                                         f"[{c}, 0, 0]": str(
                                             pointers[tensor["name"]]
-                                            # Add offset for output tensors in cat operations
                                             + (
                                                 (
                                                     stride
@@ -1153,8 +1138,7 @@ def generate_identity(
                                                     // cores
                                                 )
                                                 if tensor in outputs
-                                                and offset is not None
-                                                and offset > 0
+                                                and stride is not None
                                                 else 0
                                             )
                                             + c
@@ -1176,12 +1160,12 @@ def generate_identity(
                                 **(
                                     {
                                         "backGapCore_": {
-                                            device_dim_label: {
+                                            gap_dim_label: {
                                                 "-1": str(gap)  # HBM is -1
                                             },
                                         }
                                     }
-                                    if tensor in outputs and offset is not None
+                                    if tensor in outputs and gap is not None
                                     else {}
                                 ),
                                 "coordinates_": {
