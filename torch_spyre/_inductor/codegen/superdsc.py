@@ -405,7 +405,14 @@ def parse_op_spec(op_spec: OpSpec) -> SDSCSpec:
         work_slices[stick_sym] = 1
         dim_splits[stick_sym] = 1
 
-    constants = dict(op_spec.op_info.get("constants", {})) if op_spec.op_info else {}
+    if op_spec.op == "overwrite":
+        constants = (
+            dict(op_spec.op_info.get("overwrite_info", {})) if op_spec.op_info else {}
+        )
+    else:
+        constants = (
+            dict(op_spec.op_info.get("constants", {})) if op_spec.op_info else {}
+        )
 
     args, layouts = _create_sdsc_tensors(
         op_spec,

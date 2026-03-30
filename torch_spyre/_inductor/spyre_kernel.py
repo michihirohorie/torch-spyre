@@ -163,7 +163,7 @@ class SpyreOpFuncs:
     @staticmethod
     def overwrite(input, stride, offset, gap):
         op_info = {
-            "constants": {
+            "overwrite_info": {
                 "stride": stride,
                 "offset": offset,
                 "gap": gap,
@@ -434,7 +434,9 @@ class SpyreKernel(Kernel[CSEVariable]):
             args.append(self.create_tensor_arg(False, real_dst_name, dst))
             op_info.update(value.op_info)
             if value.op == "overwrite":
-                convert_overwrite(value.op_info["constants"], dst.layout.device_layout)
+                convert_overwrite(
+                    value.op_info["overwrite_info"], dst.layout.device_layout
+                )
             self.op_specs.append(self.create_op_spec(value.op, False, args, op_info))
         elif isinstance(value, TensorAccess):
             # Reshapes, transposes, and other dataops
@@ -616,10 +618,10 @@ def simplify_op_spec(op_spec):
         arg.device_coordinates = t["coordinates"]
 
 
-def convert_overwrite(constants, stl):
-    stride = constants["stride"]
-    gap = constants["gap"]
-    offset = constants["offset"]
+def convert_overwrite(overwrite_info, stl):
+    stride = overwrite_info["stride"]
+    gap = overwrite_info["gap"]
+    offset = overwrite_info["offset"]
     span = gap * stride
     device_dim = None
     max_stride = 0
@@ -627,5 +629,5 @@ def convert_overwrite(constants, stl):
         if st > max_stride and span >= st and stl.device_size[i] > 1:
             max_stride = st
             device_dim = i
-    constants["device_stride"] = math.prod(stl.device_size[device_dim + 1 :])
-    constants["device_offset"] = offset * stride // max_stride
+    overwrite_info["device_stride"] = math.prod(stl.device_size[device_dim + 1 :])
+    overwrite_info["device_offset"] = offset * stride // max_stride
