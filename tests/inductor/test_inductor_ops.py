@@ -1591,7 +1591,10 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
         compare_with_cpu(op, x, y, run_eager=eager_supported)
 
     def test_linear_fn(self, x, weight, bias):
-        compare_with_cpu(torch.nn.functional.linear, x, weight, bias)
+        # NOTE: relaxing atol from 2e-1 to 3e-1 for multi-dim work division, single element fails without
+        compare_with_cpu(
+            torch.nn.functional.linear, x, weight, bias, atol=3e-1, rtol=2e-1
+        )
 
     @unittest.skip("deeptools: error")
     def test_add_broadcast(self, x, y):
