@@ -247,22 +247,6 @@ def _get_op_dim_labels(ndim: int, is_matmul: bool) -> list[str]:
     return INPUT_DIM_LABELS[: ndim - 1] + OUTPUT_DIM_LABELS[:1]
 
 
-def _device_axes_for_dim(arg, dim):
-    c = Symbol(f"c{dim}")
-    return [i for i, expr in enumerate(arg.device_coordinates) if expr.has(c)]
-
-
-def _get_host_size(arg, dim) -> int:
-    device_size = arg.device_size
-    axes = _device_axes_for_dim(arg, dim)
-    if not axes:
-        return 1
-    size = 1
-    for a in axes:
-        size *= device_size[a]
-    return size
-
-
 def _create_sdsc_tensors(
     op_spec: OpSpec,
     symbol_mapping: dict,
