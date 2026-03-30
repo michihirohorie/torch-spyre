@@ -505,7 +505,7 @@ def clone(x, *, memory_format=None):
     return result
 
 
-@lowering.register_lowering(torch.ops.spyre.overwrite)
+@register_spyre_lowering(torch.ops.spyre.overwrite)
 def lower_overwrite(input, output, dim, offset):
     fn = lowering.ops_wrapper(torch.ops.spyre.overwrite.__name__)
 
