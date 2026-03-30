@@ -332,12 +332,13 @@ def generate_sdsc(sdsc_spec):
                                 **(
                                     {
                                         "backGapCore_": {
-                                            tensor.gap_dim_label: {
-                                                "-1": str(tensor.gap)  # HBM is -1
-                                            },
+                                            str(dim): {
+                                                "-1": str(gap)  # HBM is -1
+                                            }
+                                            for dim, gap in tensor.backGap.items()
                                         }
                                     }
-                                    if tensor.gap_dim_label is not None
+                                    if tensor.backGap
                                     else {}
                                 ),
                                 "coordinates_": {

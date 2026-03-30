@@ -47,8 +47,7 @@ class SDSCArgs:
     max_dim_sizes: dict[Symbol, Any]
     allocation: dict[str, Any]
     start_address: int | Symbol
-    gap: int
-    gap_dim_label: str
+    backGap: dict[Symbol, int]
     offset: int
 
     def __str__(self) -> str:
@@ -67,8 +66,7 @@ class SDSCArgs:
             f"  max_dim_sizes=[{max_dim_sizes}],\n"
             f"  allocation=[{allocation}],\n"
             f"  start_address={self.start_address}\n"
-            f"  gap={self.gap}\n"
-            f"  gap_dim_label={self.gap_dim_label}\n"
+            f"  backGap={self.backGap}\n"
             f"  offset={self.offset}\n"
             f")"
         )
@@ -279,8 +277,8 @@ def _create_sdsc_tensors(
 
     output_offset = 0
     gap = 0
-    gap_dim_label = None
     device_stride = None
+    backGap = {}
     if constants is not None:
         if (
             "gap" in constants
@@ -317,8 +315,11 @@ def _create_sdsc_tensors(
             else:
                 scales[dim] = 1
             strides[dim] = _calculate_device_stride(dim_idx, arg.device_size)
-            if device_stride == math.prod(arg.device_size[-dim_idx - 1 :]):
-                gap_dim_label = str(dim)
+            if (
+                device_stride == math.prod(arg.device_size[-dim_idx - 1 :])
+                and not arg.is_input
+            ):
+                backGap[dim] = gap
             offsets[dim] = 0
             max_dim_sizes[dim] = -1
 
@@ -340,8 +341,7 @@ def _create_sdsc_tensors(
                 max_dim_sizes=max_dim_sizes,
                 allocation=arg.allocation,
                 start_address=addr,
-                gap=gap if not arg.is_input else 0,
-                gap_dim_label=gap_dim_label if not arg.is_input else None,
+                backGap=backGap if not arg.is_input else {},
                 offset=output_offset if not arg.is_input else 0,
             )
         )
