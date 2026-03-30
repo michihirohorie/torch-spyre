@@ -265,21 +265,6 @@ def _get_host_size(arg, dim) -> int:
     return size
 
 
-def _compute_output_offset(arg, dim, offset, op_stick_dim, symbol_mapping, op_spec):
-    device_size = arg.device_size
-    dim_axes = _device_axes_for_dim(arg, dim)
-    device_dim_idx = min(dim_axes)
-    is_stick_dim = len(dim_axes) > 1
-    stick_axes = set(dim_axes)
-
-    ini_offset = offset
-    for i in range(device_dim_idx + 1, len(device_size)):
-        if not is_stick_dim or i not in stick_axes:
-            offset *= device_size[i]
-
-    return offset
-
-
 def _create_sdsc_tensors(
     op_spec: OpSpec,
     symbol_mapping: dict,
@@ -401,12 +386,13 @@ def parse_op_spec(op_spec: OpSpec) -> SDSCSpec:
     }
 
     dim_splits = {
-        symbol_mapping[dim]: value[-1] if op_spec.op != "overwrite" else 1 for dim, value in op_spec.iteration_space.items()
+        symbol_mapping[dim]: value[-1] if op_spec.op != "overwrite" else 1
+        for dim, value in op_spec.iteration_space.items()
     }
     num_cores = math.prod(dim_splits.values())
 
     work_slices = {
-        symbol_mapping[sym]: wk_slice  if op_spec.op != "overwrite" else 1
+        symbol_mapping[sym]: wk_slice if op_spec.op != "overwrite" else 1
         for sym, (_, wk_slice) in op_spec.iteration_space.items()
     }
 
