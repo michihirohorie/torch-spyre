@@ -14,7 +14,7 @@
 
 import dataclasses
 import math
-from typing import Any
+from typing import Any, Optional
 
 from sympy import Integer, Symbol, Expr, Mod, floor
 
@@ -269,7 +269,7 @@ def _create_sdsc_tensors(
     iteration_space: dict,
     op_dim_order: list[Symbol],
     op_stick_dim: Symbol | None,
-    constants: dict = None,
+    constants: Optional[dict[Any, Any]] = None,
 ) -> tuple[list[SDSCArgs], dict]:
     dims = list(iteration_space.keys())
     layouts: dict = {}
