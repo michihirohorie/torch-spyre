@@ -14,7 +14,7 @@
 
 import dataclasses
 import math
-from typing import Any, Optional
+from typing import Any
 
 from sympy import Integer, Symbol, Expr, Mod, floor
 
@@ -269,7 +269,6 @@ def _create_sdsc_tensors(
     iteration_space: dict,
     op_dim_order: list[Symbol],
     op_stick_dim: Symbol | None,
-    constants: Optional[dict[Any, Any]] = None,
 ) -> tuple[list[SDSCArgs], dict]:
     dims = list(iteration_space.keys())
     layouts: dict = {}
@@ -279,15 +278,18 @@ def _create_sdsc_tensors(
     gap = 0
     device_stride = None
     backGap = {}
-    if constants is not None:
+    if op_spec.op == "overwrite":
+        op_info = (
+            dict(op_spec.op_info.get("overwrite_info", {})) if op_spec.op_info else {}
+        )
         if (
-            "gap" in constants
-            and "device_offset" in constants
-            and "device_stride" in constants
+            "gap" in op_info
+            and "device_offset" in op_info
+            and "device_stride" in op_info
         ):
-            device_stride = constants["device_stride"]
-            gap = constants["gap"]
-            output_offset = constants["device_offset"] * device_stride
+            device_stride = op_info["device_stride"]
+            gap = op_info["gap"]
+            output_offset = op_info["device_offset"] * device_stride
 
     sdsc_args: list[SDSCArgs] = []
     for arg, addr in zip(op_spec.args, SEGMENT_OFFSETS):
@@ -405,22 +407,12 @@ def parse_op_spec(op_spec: OpSpec) -> SDSCSpec:
         work_slices[stick_sym] = 1
         dim_splits[stick_sym] = 1
 
-    if op_spec.op == "overwrite":
-        constants = (
-            dict(op_spec.op_info.get("overwrite_info", {})) if op_spec.op_info else {}
-        )
-    else:
-        constants = (
-            dict(op_spec.op_info.get("constants", {})) if op_spec.op_info else {}
-        )
-
     args, layouts = _create_sdsc_tensors(
         op_spec,
         symbol_mapping,
         sdsc_iteration_space,
         op_dim_order,
         op_stick_dim,
-        constants,
     )
 
     if is_matmul:
@@ -433,6 +425,7 @@ def parse_op_spec(op_spec: OpSpec) -> SDSCSpec:
         pad_args, pad_sdsc_args, sdsc_iteration_space, layouts
     )
 
+    constants = dict(op_spec.op_info.get("constants", {})) if op_spec.op_info else {}
     coordinate_masking = _get_coordinate_mask(sdsc_iteration_space, args[-1], padding)
     if coordinate_masking:
         constants["samv-maskvalue"] = _get_mask_value(op_spec.op)
