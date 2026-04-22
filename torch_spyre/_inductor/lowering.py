@@ -17,7 +17,7 @@ from contextlib import contextmanager
 
 import torch
 
-from torch._inductor.ir import ComputedBuffer, Reduction, Pointwise, StorageBox
+from torch._inductor.ir import ComputedBuffer, Reduction, Pointwise, Scatter, StorageBox
 import torch._inductor.lowering as lowering
 
 from typing import Any, Callable, Union
@@ -25,7 +25,7 @@ from typing import Any, Callable, Union
 from .constants import MATMUL_REDUCTION_OP, BATCH_MATMUL_OP
 import torch_spyre._inductor.customops  # noqa: F401
 from torch_spyre.ops.fallbacks import fallback_ops
-from .ir import Scatter, SpyreReduction
+from .ir import SpyreReduction
 from torch._inductor.virtualized import V
 from .errors import Unsupported
 import threading

@@ -15,7 +15,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Self, Sequence, Tuple, Union
 from abc import ABC
-import math
 
 import torch
 import sympy
