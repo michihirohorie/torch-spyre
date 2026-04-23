@@ -257,25 +257,7 @@ def _create_sdsc_tensors(
     use_op_dims = not _is_matmul(op_spec.op)
 
     missing_dim = None
-    overwrite_infos: dict = (
-        dict(op_spec.op_info.get("overwrite_infos", {})) if op_spec.op_info else {}
-    )
     adjusted_output_size = op_spec.args[-1].device_size.copy()
-    if overwrite_infos:
-        output = op_spec.args[-1]
-        dim_order, stick_dim = _get_device_dim_order(output, symbol_mapping)
-        for dim_idx, dim in enumerate(dim_order):
-            for info in overwrite_infos.values():
-                if info["device_stride"] == math.prod(
-                    output.device_size[-dim_idx - 1 :]
-                ):
-                    dim_size = iteration_space[dim]
-                    dev_dim_idx = len(output.device_size) - 2 - dim_idx
-                    adjusted_output_size[dev_dim_idx] = (
-                        dim_size // output.device_dtype.elems_per_stick()
-                        if dim == stick_dim
-                        else dim_size
-                    )
     sdsc_args: list[SDSCArgs] = []
     for arg in op_spec.args:
         addr = None if arg.arg_index < 0 else SEGMENT_OFFSETS[arg.arg_index]
