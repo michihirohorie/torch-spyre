@@ -40,6 +40,14 @@ from .compute_ops import generate_sdsc
 logger = get_inductor_logger("codegen.superdsc")
 
 
+DATA_FORMAT_CONVERSIONS = {
+    (
+        IDENTITY_OP,
+        DataFormats.IEEE_INT32,
+    ): DataFormats.IEEE_FP32,  # Identity op: int32 -> fp32
+}
+
+
 @dataclasses.dataclass
 class SDSCArgs:
     layout: str
@@ -412,10 +420,18 @@ def _create_sdsc_tensors(
             arg.device_dtype.elems_per_stick(),
             MATMUL_LAYOUT_LABELS if not use_op_dims else LAYOUT_LABELS,
         )
+        # Convert data format if needed
+        converted_data_format = DATA_FORMAT_CONVERSIONS.get(
+            (op_spec.op, op_spec.args[0].device_dtype)
+        )
+        arg_data_format = (
+            converted_data_format if converted_data_format else arg.device_dtype
+        )
+
         sdsc_args.append(
             SDSCArgs(
                 layout=label,
-                data_format=arg.device_dtype,
+                data_format=arg_data_format,
                 scales=scales,
                 strides=strides,
                 offsets=offsets,
@@ -638,9 +654,7 @@ def parse_op_spec(op_spec: OpSpec) -> SDSCSpec:
     return SDSCSpec(
         opfunc=_get_op_func(op_spec.op, op_spec.is_reduction, args[-1].scales),
         execution_unit="pt" if is_matmul else "sfp",
-        data_format=op_spec.args[
-            0
-        ].device_dtype,  # TODO: op_spec needs operation data format
+        data_format=args[0].data_format,  # TODO: op_spec needs operation data format
         num_inputs=num_inputs,
         iteration_space=sdsc_iteration_space,
         num_cores=num_cores,
