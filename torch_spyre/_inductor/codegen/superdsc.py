@@ -377,7 +377,7 @@ def _create_sdsc_tensors(
             MATMUL_LAYOUT_LABELS if not use_op_dims else LAYOUT_LABELS,
         )
         # Change dataFormat_ value if needed.
-        # This is a temporary workaround until the backend supports IEEE_INT32 in SDSC (Issue #4307).
+        # This is a temporary workaround until the backend supports IEEE_INT32 in SDSC (deeptools issue #4307).
         data_format = DATA_FORMAT.get((op_spec.op, op_spec.args[0].device_dtype))
         arg_data_format = data_format if data_format else arg.device_dtype
 
