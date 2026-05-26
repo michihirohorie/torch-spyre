@@ -40,7 +40,7 @@ from .compute_ops import generate_sdsc
 logger = get_inductor_logger("codegen.superdsc")
 
 
-DATA_FORMAT_CONVERSIONS = {
+DATA_FORMAT = {
     (
         IDENTITY_OP,
         DataFormats.IEEE_INT32,
@@ -376,13 +376,10 @@ def _create_sdsc_tensors(
             arg.device_dtype.elems_per_stick(),
             MATMUL_LAYOUT_LABELS if not use_op_dims else LAYOUT_LABELS,
         )
-        # Change dataFormat_ if needed
-        converted_data_format = DATA_FORMAT_CONVERSIONS.get(
-            (op_spec.op, op_spec.args[0].device_dtype)
-        )
-        arg_data_format = (
-            converted_data_format if converted_data_format else arg.device_dtype
-        )
+        # Change dataFormat_ value if needed.
+        # This is a temporary workaround until the backend supports IEEE_INT32 in SDSC (Issue #4307).
+        data_format = DATA_FORMAT.get((op_spec.op, op_spec.args[0].device_dtype))
+        arg_data_format = data_format if data_format else arg.device_dtype
 
         sdsc_args.append(
             SDSCArgs(
