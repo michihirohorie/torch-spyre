@@ -40,20 +40,6 @@ from .compute_ops import generate_sdsc
 logger = get_inductor_logger("codegen.superdsc")
 
 
-# NOTE: This is NOT a data conversion.
-# This is only a temporary re-labeling of the same 32 bit data.
-# The underlying data remains unchanged.
-#
-# In the long term, SDSC should accept int32 as the data format.
-# Such re-labeling will become unnecessary.
-DATA_FORMAT = {
-    (
-        IDENTITY_OP,
-        DataFormats.IEEE_INT32,
-    ): DataFormats.IEEE_FP32,  # Identity op: int32 -> fp32
-}
-
-
 @dataclasses.dataclass
 class SDSCArgs:
     layout: str
@@ -312,6 +298,24 @@ def _get_op_dim_labels(ndim: int, is_matmul: bool) -> list[str]:
         return INPUT_DIM_LABELS[: ndim - 1] + OUTPUT_DIM_LABELS[:1]
 
 
+def _get_data_format(op, device_dtype):
+    """
+    NOTE: This is NOT a data conversion.
+    This is only a temporary re-labeling of the same 32 bit data.
+    The underlying data remains unchanged.
+
+    In the long term, SDSC should accept int32 as the data format.
+    Such re-labeling will become unnecessary.
+    """
+    data_format = {
+        (
+            IDENTITY_OP,
+            DataFormats.IEEE_INT32,
+        ): DataFormats.IEEE_FP32,  # Identity op: int32 -> fp32
+    }
+    return data_format.get((op, device_dtype), device_dtype)
+
+
 def _create_sdsc_tensors(
     op_spec: OpSpec,
     symbol_mapping: dict,
@@ -384,8 +388,7 @@ def _create_sdsc_tensors(
         )
         # Change dataFormat_ value if needed.
         # This is a temporary workaround until the backend supports IEEE_INT32 in SDSC (deeptools issue #4307).
-        data_format = DATA_FORMAT.get((op_spec.op, op_spec.args[0].device_dtype))
-        arg_data_format = data_format if data_format else arg.device_dtype
+        arg_data_format = _get_data_format(op_spec.op, arg.device_dtype)
 
         sdsc_args.append(
             SDSCArgs(
