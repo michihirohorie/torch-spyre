@@ -40,6 +40,12 @@ from .compute_ops import generate_sdsc
 logger = get_inductor_logger("codegen.superdsc")
 
 
+# NOTE: This is NOT a data conversion.
+# This is only a temporary re-labeling of the same 32 bit data.
+# The underlying data remains unchanged.
+#
+# In the long term, SDSC should accept int32 as the data format.
+# Such re-labeling will become unnecessary.
 DATA_FORMAT = {
     (
         IDENTITY_OP,
