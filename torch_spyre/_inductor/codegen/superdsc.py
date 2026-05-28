@@ -625,7 +625,9 @@ def parse_op_spec(op_spec: OpSpec) -> tuple["SDSCSpec", "dict"]:
         SDSCSpec(
             opfunc=_get_op_func(op_spec.op, op_spec.is_reduction, args[-1].scales),
             execution_unit="pt" if is_matmul else "sfp",
-            data_format=args[0].data_format,  # TODO: op_spec needs operation data format
+            data_format=args[
+                0
+            ].data_format,  # TODO: op_spec needs operation data format
             num_inputs=num_inputs,
             iteration_space=sdsc_iteration_space,
             num_cores=num_cores,
