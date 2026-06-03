@@ -23,27 +23,25 @@ from torch.utils._sympy.functions import ModularIndexing, FloorDiv
 from torch._inductor.virtualized import V
 
 
-def detect_repeat(index_exprs, var_ranges):
-    repeat_mod_vars = set()
-    for var in var_ranges:
-        has_inner = False
-        has_outer = False
+def find_repeat_vars(index_exprs, var_ranges):
+    repeat_info = {}
+    for var, var_range in var_ranges.items():
         for expr in index_exprs:
-            for node in sympy.preorder_traversal(expr):
-                if isinstance(node, ModularIndexing):
-                    base, divisor, modulus = node.args
-                    if base == var:
-                        if divisor == 1:
-                            has_inner = True
-                        else:
-                            has_outer = True
-
-        # Variable is considered repeat if it appears in
-        # ModularIndexing with divisor=1
-        if has_inner and not has_outer:
-            repeat_mod_vars.add(var)
-
-    return repeat_mod_vars
+            all_mods = expr.find(sympy.Mod)
+            mods = []
+            for m in all_mods:
+                if m.has(var):
+                    mods.append(m)
+            if len(mods) != 1:
+                continue
+            node = mods[0]
+            base, modulus = node.args
+            if base.has(var) and sympy.simplify(modulus < var_range):
+                repeat_info[var] = {
+                    "modulus": modulus,
+                    "node": node,
+                }
+    return repeat_info
 
 
 def convert_modular_indexing(expr: sympy.Expr) -> sympy.Expr:
@@ -128,14 +126,13 @@ def compute_coordinates(
         f"compute_coordinates requires concrete sizes, got {size}"
     )
 
-    repeat_mod_vars = detect_repeat([index], var_ranges)
-    if not hasattr(V.graph, "_repeat_mod_vars"):
-        V.graph._repeat_mod_vars = set(repeat_mod_vars)
-    else:
-        V.graph._repeat_mod_vars |= repeat_mod_vars
-
     # Convert ModularIndexing expressions to sympy.Mod before processing
     index = convert_modular_indexing(index)
+    repeat_info = find_repeat_vars([index], var_ranges)
+    if not hasattr(V.graph, "_repeat_info"):
+        V.graph._repeat_info = dict(repeat_info)
+    else:
+        V.graph._repeat_info.update(repeat_info)
 
     # find stride immediately strictly larger that dim stride
     n = len(size)
@@ -207,28 +204,24 @@ def compute_coordinates(
         # isolate current var
         term = index.xreplace({v: 0 for v in vars - {var}})
 
-        if isinstance(term, sympy.Mul):
-            mod_exprs = []
+        if var in repeat_info:
+            info = repeat_info[var]
+            modulus = info["modulus"]
+            node = info["node"]
             coeff = sympy.S.One
-            for arg in term.args:
-                if isinstance(arg, sympy.Mod) and arg.args[0] == var:
-                    mod_exprs.append(arg)
-                else:
-                    coeff *= arg
-
-            if len(mod_exprs) == 1:
-                mod_expr = mod_exprs[0]
-                modulus = mod_expr.args[1]
-                step = coeff
-                limit = coeff * modulus
-                add_term(var=mod_expr, step=step, limit=limit)
+            if isinstance(term, sympy.Mul):
+                found = False
+                for arg in term.args:
+                    if not found and arg == node:
+                        found = True
+                    else:
+                        coeff *= arg
+                if found:
+                    add_term(var=node, step=coeff, limit=coeff * modulus)
+                    continue
+            elif term == node:
+                add_term(var=node, step=coeff, limit=modulus)
                 continue
-        elif isinstance(term, sympy.Mod) and term.args[0] == var:
-            modulus = term.args[1]
-            step = sympy.S.One
-            limit = modulus
-            add_term(var=term, step=step, limit=limit)
-            continue
 
         # compute index({var=1}) and index({var=var_ranges[var]})
         step = term.xreplace({var: 1})
@@ -440,7 +433,7 @@ def align_tensors(
     # TODO(issue#1373): make align_tensors symbolic-aware so concretization can
     #              be removed.
 
-    repeat_mod_vars: set[sympy.Symbol] = getattr(V.graph, "_repeat_mod_vars", set())
+    repeat_info: set[sympy.Symbol] = getattr(V.graph, "_repeat_info", set())
 
     var_ranges = {
         var: _concretize_for_cmp(val[0]) for var, val in iteration_space.items()
@@ -481,12 +474,12 @@ def align_tensors(
                 if (
                     mod != stick_size[i]
                     or var != stick_dim[i]
-                    or var in repeat_mod_vars
+                    or var in repeat_info.keys()
                 ):
                     # add mod to splits unless stick dim and stick size
                     splits[var].add(mod)
 
-    V.graph._repeat_mod_vars.clear()
+    V.graph._repeat_info.clear()
 
     # Insert restored size-1 dimensions with offset/gap to the other tensors
     for var in new_vars:
