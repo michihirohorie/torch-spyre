@@ -36,11 +36,36 @@ def find_repeat_vars(index_exprs, var_ranges):
                 continue
             node = mods[0]
             base, modulus = node.args
-            if base.has(var) and sympy.simplify(modulus < var_range):
+            if not sympy.simplify(modulus < var_range):
+                continue
+
+            vars_in_expr = expr.free_symbols
+            term = expr.xreplace({v: 0 for v in vars_in_expr - {var}})
+
+            if term == node:
                 repeat_info[var] = {
                     "modulus": modulus,
                     "node": node,
+                    "kind": "mod",
                 }
+                break
+            if isinstance(term, sympy.Mul):
+                coeff = sympy.S.One
+                found = False
+                for arg in term.args:
+                    if not found and arg == node:
+                        found = True
+                    else:
+                        coeff *= arg
+                if found:
+                    repeat_info[var] = {
+                        "modulus": modulus,
+                        "node": node,
+                        "kind": "mul_mod",
+                        "coeff": coeff,
+                    }
+                    break
+
     return repeat_info
 
 
@@ -206,22 +231,12 @@ def compute_coordinates(
 
         if var in repeat_info:
             info = repeat_info[var]
-            modulus = info["modulus"]
-            node = info["node"]
-            coeff = sympy.S.One
-            if isinstance(term, sympy.Mul):
-                found = False
-                for arg in term.args:
-                    if not found and arg == node:
-                        found = True
-                    else:
-                        coeff *= arg
-                if found:
-                    add_term(var=node, step=coeff, limit=coeff * modulus)
-                    continue
-            elif term == node:
-                add_term(var=node, step=coeff, limit=modulus)
-                continue
+            if info["kind"] == "mod":
+                add_term(var=info["node"], step=sympy.S.One, limit=info["modulus"])
+            elif info["kind"] == "mul_mod":
+                coeff = info["coeff"]
+                add_term(var=info["node"], step=coeff, limit=coeff * info["modulus"])
+            continue
 
         # compute index({var=1}) and index({var=var_ranges[var]})
         step = term.xreplace({var: 1})
