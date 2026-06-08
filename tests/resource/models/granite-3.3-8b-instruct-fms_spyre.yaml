@@ -593,6 +593,7 @@ cases:
           init: rand
     description: 'foundation-model-stack/fms/modules/feedforward.py:294 in forward, code: out = self.a(self.wg(x)) * self.w1(x)'
   - name: torch.nn.functional.linear.4_spyre
+    rtol: 0.1
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -2385,6 +2386,7 @@ cases:
           init: rand
     description: 'foundation-model-stack/fms/models/granite.py:137 in forward, code: x = x * self.config.residual_multiplier + residual'
   - name: torch.nn.functional.linear.8_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:

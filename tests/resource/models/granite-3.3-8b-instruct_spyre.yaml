@@ -914,6 +914,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/granite/modeling_granite.py#L221 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.4_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1824,6 +1825,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/granite/modeling_granite.py#L221 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.10_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:

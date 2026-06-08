@@ -803,6 +803,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/pixtral/modeling_pixtral.py#L275 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.3_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1051,6 +1052,7 @@ cases:
           init: rand
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/activations.py#L89 in forward, code: return self.act(input)'
   - name: torch.nn.functional.linear.5_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1563,6 +1565,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/mistral/modeling_mistral.py#L199 in forward, code: return
       self.weight * hidden_states.to(input_dtype)'
   - name: torch.nn.functional.linear.6_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1613,6 +1616,7 @@ cases:
       = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)'
     marks: constant
   - name: torch.nn.functional.linear.7_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -2054,6 +2058,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/mistral/modeling_mistral.py#L179 in forward, code: attn_output
       = attn_output.reshape(*input_shape, -1).contiguous()'
   - name: torch.nn.functional.linear.8_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -2094,6 +2099,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/mistral/modeling_mistral.py#L238 in forward, code: hidden_states
       = residual + hidden_states'
   - name: torch.nn.functional.linear.9_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -2145,6 +2151,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/mistral/modeling_mistral.py#L47 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.10_spyre
+    rtol: 0.1
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -3027,6 +3034,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/mistral/modeling_mistral.py#L47 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.16_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:

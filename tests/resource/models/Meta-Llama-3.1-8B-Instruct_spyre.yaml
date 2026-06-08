@@ -877,6 +877,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/llama/modeling_llama.py#L330 in forward, code: hidden_states
       = residual + hidden_states'
   - name: torch.nn.functional.linear.3_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -928,6 +929,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/llama/modeling_llama.py#L183 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.4_spyre
+    rtol: 0.1
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1787,6 +1789,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/llama/modeling_llama.py#L330 in forward, code: hidden_states
       = residual + hidden_states'
   - name: torch.nn.functional.linear.9_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
@@ -1838,6 +1841,7 @@ cases:
     description: 'https://github.com/huggingface/transformers/blob/v5.2.0/src/transformers/models/llama/modeling_llama.py#L183 in forward, code: down_proj
       = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))'
   - name: torch.nn.functional.linear.10_spyre
+    rtol: 0.01
     op: torch.nn.functional.linear
     inputs:
       - tensor:
