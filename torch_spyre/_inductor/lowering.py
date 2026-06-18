@@ -1148,3 +1148,27 @@ def lower_minimum(x, y):
 )
 def lower_maximum(x, y):
     return with_int64_fallback(lowering.maximum, x, y)
+
+
+@register_spyre_lowering(
+    torch.ops.aten.prod.default,
+    type_promotion_kind=None,
+)
+def lower_prod(x):
+    return with_int64_fallback(lowering.prod, x)
+
+
+@register_spyre_lowering(
+    torch.ops.aten.prod.dim_int,
+    type_promotion_kind=None,
+)
+def lower_prod_dim(x, dim, keepDim=False):
+    def _prod_dim_impl(x):
+        kwargs = lowering._make_reduction_inner(
+            x, axis=[dim], keepdims=keepDim, dtype=x.dtype, override_return_dtype=None
+        )
+        result = Reduction.create(reduction_type="prod", input_node=x, **kwargs)
+        result.realize()
+        return result
+
+    return with_int64_fallback(_prod_dim_impl, x)

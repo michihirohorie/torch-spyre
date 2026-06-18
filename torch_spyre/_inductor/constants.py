@@ -82,6 +82,7 @@ SPYRE_FP32_OPS = [
     "to_dtype",
     "maximum",
     "minimum",
+    "prod",
 ]
 
 TOPK_OPS = {"topkvalue", "topkindex"}
