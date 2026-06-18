@@ -134,8 +134,15 @@ def _pick_stick_dim(stick_expr, out_coords) -> int:
 
 
 def _output_stl_from_stick_expr(
-    stick_expr, output, output_dep, c_size, c_stride
-) -> SpyreTensorLayout | None:
+    stick_expr,
+    output,
+    output_dep,
+    c_size,
+    c_stride,
+    reduction_type=None,
+    in_layout=None,
+    dep=None,
+) -> tuple[SpyreTensorLayout | None, int]:
     """If stick_expr is offset-free, build an output STL with it mapped to the right dim.
 
     Returns None if stick_expr has an offset (caller should fall back to scanning).
@@ -145,7 +152,25 @@ def _output_stl_from_stick_expr(
         return None
     out_coords = host_coordinates(output, output_dep, None)
     out_stick_dim = _pick_stick_dim(stick_expr, out_coords)
-    return _make_output_stl(output, output_dep, c_size, c_stride, out_stick_dim)
+
+    if reduction_type == "prod":
+        is_keepdim = False
+        if dep is not None:
+            reduction_vars = dep.index.free_symbols - output_dep.index.free_symbols
+            # Check if reduction_vars includes stick_expr
+            if reduction_vars & stick_expr.free_symbols:
+                return None, out_stick_dim
+        # Check if dimension is kept
+        if in_layout is not None and reduction_type is not None:
+            is_keepdim = len(output.size) == len(in_layout.size)
+        if not is_keepdim:
+            return None, out_stick_dim
+
+    if not is_stick_expr_offset_free(stick_expr, stick_size):
+        return None, out_stick_dim
+    return _make_output_stl(
+        output, output_dep, c_size, c_stride, out_stick_dim
+    ), out_stick_dim
 
 
 def _make_output_stl(
@@ -228,12 +253,21 @@ def _single_arg_op_layout(
         x_stick_expr = x_dev_coords[-1]
 
         # Try to preserve input layout
-        out_stl = _output_stl_from_stick_expr(
-            x_stick_expr, output, output_dep, c_size, c_stride
+        out_stl, stick_dim = _output_stl_from_stick_expr(
+            x_stick_expr,
+            output,
+            output_dep,
+            c_size,
+            c_stride,
+            data.reduction_type,
+            in_layout,
+            dep=dep,
         )
         if out_stl is not None:
             return [out_stl]
 
+        if stick_dim < 0:
+            stick_dim += len(in_layout.size)
         # Try alternative layouts when input layout is not supported
         in_coords = host_coordinates(in_layout, dep, None)
         reduction_var = next(
@@ -241,6 +275,8 @@ def _single_arg_op_layout(
         )
         layouts = []
         for in_dim in range(len(in_layout.size)):
+            if in_dim == stick_dim:
+                continue
             if concretize_expr(in_layout.size[in_dim]) % stick_size != 0:
                 # TODO: Support dimensions with size not divisible by stick_size via padding (See #1756)
                 continue
@@ -337,7 +373,7 @@ def _single_arg_op_layout(
     stick_expr = in_device_coords[-1]
 
     # Try to preserve input layout, fall back to scanning all output dims
-    out_stl = _output_stl_from_stick_expr(
+    out_stl, _ = _output_stl_from_stick_expr(
         stick_expr, output, output_dep, c_size, c_stride
     )
     if out_stl is not None:

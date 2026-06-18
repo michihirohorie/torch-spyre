@@ -83,6 +83,7 @@ SPYRE_FP32_OPS = [
     "to_dtype",
     "maximum",
     "minimum",
+    "prod",
 ]
 
 # Operations that directly handle FP8 dtypes (SEN143_FP8)

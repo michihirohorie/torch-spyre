@@ -4285,6 +4285,66 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
                 "3d_8x6x4": (cached_randn((2, 3, 64), dtype=torch.float16), 8, 6, 4),
             },
         },
+        # TODO: Full support for torch.prod is not yet implemented. In particular,
+        # calculating the product of all elements in the tensor is not supported yet.
+        # Once all cases are supported, similar to other reduction ops, we can
+        # simply register `prod` in the CORE_REDUCTION_OPS_DICT table.
+        ("test_prod", "test_prod_cpu"): {
+            "param_sets": {
+                "int64_dim0": (
+                    torch.randint(2, 10, (1, 2), dtype=torch.int64),
+                    0,
+                    False,
+                ),
+                "int64_dim0_keepdim": (
+                    torch.randint(2, 10, (1, 2), dtype=torch.int64),
+                    0,
+                    True,
+                ),
+                "int64_dim1": (
+                    torch.randint(2, 10, (1, 2), dtype=torch.int64),
+                    -1,
+                    False,
+                ),
+                "int64_dim1_keepdim": (
+                    torch.randint(2, 10, (1, 2), dtype=torch.int64),
+                    -1,
+                    True,
+                ),
+                "int64_dim0_2": (
+                    torch.randint(1, 2, (64, 32), dtype=torch.int64),
+                    0,
+                    False,
+                ),
+                "int64_dim0_2_keepdim": (
+                    torch.randint(1, 2, (64, 32), dtype=torch.int64),
+                    0,
+                    True,
+                ),
+                "int64_dim1_2": (
+                    torch.randint(1, 2, (64, 32), dtype=torch.int64),
+                    -1,
+                    False,
+                ),
+                "int64_dim1_2_keepdim": (
+                    torch.randint(1, 2, (64, 32), dtype=torch.int64),
+                    -1,
+                    True,
+                ),
+                "fp16_dim0": (torch.randn((128, 64), dtype=torch.float16), 0, False),
+                "fp16_dim0_keepdim": (
+                    torch.randn((128, 64), dtype=torch.float16),
+                    0,
+                    True,
+                ),
+                "fp16_dim1": (torch.randn((128, 64), dtype=torch.float16), -1, False),
+                "fp16_dim1_keepdim": (
+                    torch.randn((128, 64), dtype=torch.float16),
+                    -1,
+                    True,
+                ),
+            },
+        },
         ("test_unfold", "test_unfold_cpu"): {
             "param_sets": {
                 # 1D: Basic cases
@@ -6096,6 +6156,12 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
             match="Boolean value of Tensor with more than one value is ambiguous",
         ):
             compiled(x_multi.to("spyre"))
+
+    def test_prod_cpu(self, x, dim, keepdim):
+        def fn(a):
+            return torch.prod(a, dim=dim, keepdim=keepdim)
+
+        self.compare_with_cpu(fn, x, run_eager=False)
 
 
 if __name__ == "__main__":

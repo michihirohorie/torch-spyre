@@ -903,6 +903,42 @@ def spyre_quantize_fp8_with_scale(
     return torch.ops.spyre.qfp8ch(x_clamped)
 
 
+@register_spyre_decomposition([torch.ops.aten.prod.dim_int])
+def spyre_prod_dim_int(
+    input: torch.Tensor, dim: int, keepdim: bool = False
+) -> torch.Tensor:
+    # Currently, restickify does not support fp32 (int64 is also converted to fp32
+    # for now, so it is unsupported as well).
+    # Use decomposition in these cases as a safe fallback, even if restickify
+    # might not be needed in the end.
+    if input.dtype != torch.float32 and input.dtype != torch.int64:
+        return torch.ops.spyre.prod_dim_int(input, dim, keepdim)
+
+    if dim < 0:
+        dim += input.ndim
+    out_shape = list(input.shape)
+    size = input.shape[dim]
+    if size == 0:
+        if keepdim:
+            out_shape[dim] = 1
+        else:
+            out_shape = out_shape[:dim] + out_shape[dim + 1 :]
+        return torch.ones(out_shape, dtype=input.dtype, device=input.device)
+
+    out_shape = out_shape[:dim] + out_shape[dim + 1 :]
+    acc = torch.ones(out_shape, dtype=input.dtype, device=input.device)
+    for i in range(size):
+        index = [slice(None)] * input.ndim
+        index[dim] = slice(i, i + 1)
+        slice_i = input[tuple(index)].squeeze(dim)
+        acc = acc * slice_i
+
+    if keepdim:
+        acc = acc.unsqueeze(dim)
+
+    return acc
+
+
 ###############################################################################################
 ##                           Register custom kernels for Spyre.                              ##
 ###############################################################################################
