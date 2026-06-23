@@ -1159,7 +1159,7 @@ def lower_prod(x):
 
 
 @register_spyre_lowering(
-    torch.ops.aten.prod.dim_int,
+    torch.ops.spyre.prod_dim_int,
     type_promotion_kind=None,
 )
 def lower_prod_dim(x, dim, keepDim=False):

@@ -543,3 +543,22 @@ def to_dtype_cpu(input: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
 @to_dtype_cpu.register_fake
 def _(input: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
     return torch.empty_like(input, dtype=dtype)
+
+
+@torch.library.custom_op("spyre::prod_dim_int", mutates_args=(), device_types="spyre")
+def prod_dim_int_fp32(
+    input: torch.Tensor, dim: int, keepdim: bool = False
+) -> torch.Tensor:
+    pass
+
+
+@prod_dim_int_fp32.register_fake
+def _(input: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
+    if dim < 0:
+        dim = dim + input.ndim
+    out_shape = list(input.shape)
+    if keepdim:
+        out_shape[dim] = 1
+    else:
+        out_shape = out_shape[:dim] + out_shape[dim + 1 :]
+    return torch.empty(out_shape, dtype=input.dtype, device=input.device)
