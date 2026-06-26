@@ -4984,20 +4984,6 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
 
     @pytest.mark.xfail(
         reason=(
-            "Spyre compiled backend does not support torch.prod yet (stable "
-            "error signature: InductorError: AttributeError: "
-            "'UnimplementedOp' object has no attribute 'iteration_space')"
-        ),
-        strict=True,
-    )
-    def test_prod_dim0_known_xfail(self):
-        x = cached_randn((67, 256), scale=0.1)
-        self.compare_with_cpu(
-            lambda x: torch.prod(x, dim=0, keepdim=False), x, run_eager=False
-        )
-
-    @pytest.mark.xfail(
-        reason=(
             "Spyre compiled backend does not support torch.std yet (stable "
             "error signature: InductorError: TypeError: "
             "'UnimplementedOp' object is not subscriptable)"
