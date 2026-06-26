@@ -132,7 +132,14 @@ def _pick_stick_dim(stick_expr, out_coords) -> int:
 
 
 def _output_stl_from_stick_expr(
-    stick_expr, output, output_dep, c_size, c_stride, reduction_type=None
+    stick_expr,
+    output,
+    output_dep,
+    c_size,
+    c_stride,
+    reduction_type=None,
+    in_layout=None,
+    dep=None,
 ) -> tuple[SpyreTensorLayout | None, int]:
     """If stick_expr is offset-free, build an output STL with it mapped to the right dim.
 
@@ -141,13 +148,19 @@ def _output_stl_from_stick_expr(
     stick_size = get_elem_in_stick(output.dtype)
     out_coords = host_coordinates(output, output_dep)
     out_stick_dim = _pick_stick_dim(stick_expr, out_coords)
-    print(
-        f"DEBUG:c_size={c_size}, output={output}, stick_size={stick_size}, out_coords={out_coords}, stick_expr={stick_expr}"
-    )
-    if (
-        not is_stick_expr_offset_free(stick_expr, stick_size)
-        or reduction_type == "prod"
-    ):
+
+    if reduction_type == "prod":
+        is_keepdim = False
+        if dep is not None:
+            reduction_vars = dep.index.free_symbols - output_dep.index.free_symbols
+            if reduction_vars & stick_expr.free_symbols:
+                return None, out_stick_dim
+        if in_layout is not None and reduction_type is not None:
+            is_keepdim = len(output.size) == len(in_layout.size)
+        if not is_keepdim:
+            return None, out_stick_dim
+
+    if not is_stick_expr_offset_free(stick_expr, stick_size):
         return None, out_stick_dim
     return _make_output_stl(
         output, output_dep, c_size, c_stride, out_stick_dim
@@ -235,10 +248,14 @@ def _single_arg_op_layout(
 
         # Try to preserve input layout
         out_stl, stick_dim = _output_stl_from_stick_expr(
-            x_stick_expr, output, output_dep, c_size, c_stride, data.reduction_type
-        )
-        print(
-            f"DEBUG:out_stl={out_stl}, op={data.reduction_type}, stick_dim={stick_dim}"
+            x_stick_expr,
+            output,
+            output_dep,
+            c_size,
+            c_stride,
+            data.reduction_type,
+            in_layout,
+            dep=dep,
         )
         if out_stl is not None:
             return [out_stl]
@@ -252,9 +269,7 @@ def _single_arg_op_layout(
         )
         layouts = []
         for in_dim in range(len(in_layout.size)):
-            print(f"DEBUG:in_dim={in_dim}")
             if in_dim == stick_dim:
-                print("DEBUG:stick_dim matched")
                 continue
             if concretize_expr(in_layout.size[in_dim]) % stick_size != 0:
                 # TODO: Support dimensions with size not divisible by stick_size via padding (See #1756)
@@ -271,7 +286,6 @@ def _single_arg_op_layout(
                 output, output_dep, c_size, c_stride, out_stick_dim
             )
             if out_stl is not None:
-                print(f"DEBUG:out_stl={out_stl}")
                 layouts.append(out_stl)
 
         return layouts
@@ -832,7 +846,6 @@ def compute_layouts(
             f"output size={output.size}"
         )
     op.restick_cost_fn = AllSameNode.from_args(args, layouts, output_dep, op)
-    print(f"DEBUG:layouts={layouts}")
     return layouts
 
 
