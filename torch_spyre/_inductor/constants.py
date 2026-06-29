@@ -17,6 +17,9 @@ IDENTITY_OP = "identity"
 RESTICKIFY_OP = "ReStickifyOpHBM"
 BATCH_MATMUL_FP8_OP = "batchmatmulfp8"
 
+# Reduction ops that cannot reduce along the stick dimension.
+REDUCTIONS_NON_STICK_DIM_ONLY = {"prod"}
+
 # Type casting operators from deeptools
 DL16TOFP32_OP = "dl16tofp32"
 FP32TODL16_OP = "fp32todl16"
