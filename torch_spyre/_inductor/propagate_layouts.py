@@ -224,7 +224,7 @@ def _single_arg_op_layout(
     stick_size = get_elem_in_stick(output.dtype)
 
     if isinstance(data, Reduction):
-        x_dev_coords = device_coordinates(stl, dep)
+        x_dev_coords = device_coordinates(stl, dep, None)
         x_stick_expr = x_dev_coords[-1]
         reduction_var = next(
             iter(dep.index.free_symbols - output_dep.index.free_symbols), None
@@ -242,8 +242,8 @@ def _single_arg_op_layout(
                 return [out_stl]
 
         # Try alternative layouts when input layout is not supported
-        in_coords = host_coordinates(in_layout, dep)
-        out_coords = host_coordinates(output, output_dep)
+        in_coords = host_coordinates(in_layout, dep, None)
+        out_coords = host_coordinates(output, output_dep, None)
         stick_dim = matching_dim(in_coords, x_stick_expr)
         layouts = []
         for in_dim in range(len(in_layout.size)):
