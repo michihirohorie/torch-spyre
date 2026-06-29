@@ -922,7 +922,6 @@ def spyre_prod_dim_int(
     for i in range(reduce_size):
         acc = acc * input.select(dim, i)
 
-
     if keepdim:
         acc = acc.unsqueeze(dim)
 
