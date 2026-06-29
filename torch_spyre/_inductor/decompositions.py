@@ -917,21 +917,11 @@ def spyre_prod_dim_int(
     if dim < 0:
         dim += input.ndim
     out_shape = list(input.shape)
-    size = input.shape[dim]
-    if size == 0:
-        if keepdim:
-            out_shape[dim] = 1
-        else:
-            out_shape = out_shape[:dim] + out_shape[dim + 1 :]
-        return torch.ones(out_shape, dtype=input.dtype, device=input.device)
-
-    out_shape = out_shape[:dim] + out_shape[dim + 1 :]
+    reduce_size = out_shape.pop(dim)
     acc = torch.ones(out_shape, dtype=input.dtype, device=input.device)
-    for i in range(size):
-        index = [slice(None)] * input.ndim
-        index[dim] = slice(i, i + 1)
-        slice_i = input[tuple(index)].squeeze(dim)
-        acc = acc * slice_i
+    for i in range(reduce_size):
+        acc = acc * input.select(dim, i)
+
 
     if keepdim:
         acc = acc.unsqueeze(dim)
