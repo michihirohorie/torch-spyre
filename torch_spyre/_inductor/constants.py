@@ -18,6 +18,8 @@ RESTICKIFY_OP = "ReStickifyOpHBM"
 BATCH_MATMUL_FP8_OP = "batchmatmulfp8"
 
 # Reduction ops that cannot reduce along the stick dimension.
+# Native prod reduction is not currently available in the backend.
+# See backend issue #4409.
 REDUCTIONS_NON_STICK_DIM_ONLY = {"prod"}
 
 # Type casting operators from deeptools

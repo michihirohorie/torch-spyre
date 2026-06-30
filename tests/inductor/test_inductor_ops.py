@@ -4285,10 +4285,9 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
                 "3d_8x6x4": (cached_randn((2, 3, 64), dtype=torch.float16), 8, 6, 4),
             },
         },
-        # TODO: Full support for torch.prod is not yet implemented. In particular,
-        # calculating the product of all elements in the tensor is not supported yet.
-        # Once all cases are supported, similar to other reduction ops, we can
-        # simply register `prod` in the CORE_REDUCTION_OPS_DICT table.
+        # TODO: torch.prod(x) (reduction over all tensor elements) is not yet
+        # supported. Once support for all torch.prod forms is implemented, we
+        # can register `prod` in CORE_REDUCTION_OPS_DICT like other reduction ops.
         ("test_prod", "test_prod_cpu"): {
             "param_sets": {
                 "int64_dim0": (

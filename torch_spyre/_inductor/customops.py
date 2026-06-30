@@ -652,13 +652,11 @@ def _(input: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
 
 
 @torch.library.custom_op("spyre::prod_dim_int", mutates_args=(), device_types="spyre")
-def prod_dim_int_fp32(
-    input: torch.Tensor, dim: int, keepdim: bool = False
-) -> torch.Tensor:
+def prod_dim_int(input: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
     pass
 
 
-@prod_dim_int_fp32.register_fake
+@prod_dim_int.register_fake
 def _(input: torch.Tensor, dim: int, keepdim: bool = False) -> torch.Tensor:
     if dim < 0:
         dim += input.ndim

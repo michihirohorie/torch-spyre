@@ -230,6 +230,10 @@ def _single_arg_op_layout(
             iter(dep.index.free_symbols - output_dep.index.free_symbols), None
         )
 
+        # Do not preserve the input layout for reduction ops listed in
+        # REDUCTIONS_NON_STICK_DIM_ONLY when reducing along the stick
+        # dimension. Those reductions are currently unsupported in the backend.
+        # See backend issue #4409.
         if not (
             data.reduction_type in REDUCTIONS_NON_STICK_DIM_ONLY
             and reduction_var in x_stick_expr.free_symbols
